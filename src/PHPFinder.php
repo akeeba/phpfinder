@@ -67,36 +67,9 @@ final class PHPFinder
 	 */
 	final public function getBestPath(?string $version = null): ?string
 	{
-		$possiblePaths = $this->getPossiblePaths($version);
+		$info = $this->getBestPathMeta($version);
 
-		if (empty($possiblePaths))
-		{
-			return null;
-		}
-
-		if (empty($version) || !$this->configuration->validateVersion)
-		{
-			return array_shift($possiblePaths);
-		}
-
-		foreach ($possiblePaths as $path)
-		{
-			$info = $this->analyzePHPVersion($path);
-
-			if (strpos($info->version, $version) === false)
-			{
-				continue;
-			}
-
-			if ($this->configuration->validateCli && !$info->cli)
-			{
-				continue;
-			}
-
-			return $path;
-		}
-
-		return null;
+		return $info === null ? null : $info->path;
 	}
 
 	/**
@@ -119,20 +92,11 @@ final class PHPFinder
 			return null;
 		}
 
-		if (empty($version) || !$this->configuration->validateVersion)
-		{
-			$path       = array_shift($possiblePaths);
-			$info       = $this->analyzePHPVersion($path);
-			$info->path = $path;
-
-			return $info;
-		}
-
 		foreach ($possiblePaths as $path)
 		{
 			$info = $this->analyzePHPVersion($path);
 
-			if (strpos($info->version, $version) === false)
+			if ($this->configuration->validateVersion && strpos($info->version, $version) === false)
 			{
 				continue;
 			}
