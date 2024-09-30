@@ -110,7 +110,7 @@ final class PHPFinder
 	 * @since   1.0.0
 	 * @see     self::getBestPath
 	 */
-	final public function getBestPathMeta(?string $version): ?object
+	final public function getBestPathMeta(?string $version = null): ?object
 	{
 		$possiblePaths = $this->getPossiblePaths($version);
 
