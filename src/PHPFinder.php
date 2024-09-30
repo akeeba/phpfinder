@@ -284,7 +284,7 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			$which = exec('which ' . escapeshellarg($executable) . ' 2>/dev/null', $output, $resultCode);
+			$which = @exec('which ' . escapeshellarg($executable) . ' 2>/dev/null', $output, $resultCode);
 
 			if ($which === false || $resultCode !== 0)
 			{
@@ -329,7 +329,7 @@ final class PHPFinder
 		$possibleExecutables = $this->getBinaryNamesForVersion($version);
 		$ret                 = [];
 
-		$result = exec('update-alternatives --list php 2>/dev/null', $output);
+		$result = @exec('update-alternatives --list php 2>/dev/null', $output);
 
 		if ($result === false)
 		{
@@ -397,7 +397,7 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			$result = exec('whereis -b ' . escapeshellarg($executable) . ' 2>/dev/null');
+			$result = @exec('whereis -b ' . escapeshellarg($executable) . ' 2>/dev/null');
 
 			if ($result === false)
 			{
@@ -458,7 +458,7 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			$where = exec('where ' . escapeshellarg($executable), $output, $resultCode);
+			$where = @exec('where ' . escapeshellarg($executable), $output, $resultCode);
 
 			if ($where === false || $resultCode !== 0)
 			{
@@ -798,7 +798,7 @@ final class PHPFinder
 
 		foreach ($checkFor as $package)
 		{
-			$result = exec('brew --prefix ' . escapeshellarg($package));
+			$result = @exec('brew --prefix ' . escapeshellarg($package));
 
 			if (!$result)
 			{
@@ -964,7 +964,7 @@ final class PHPFinder
 		}
 
 		// First, let's try WMIC (deprecated since Windows 11)
-		$result = exec('wmic logicaldisk get name', $output);
+		$result = @exec('wmic logicaldisk get name', $output);
 
 		if ($result !== false)
 		{
@@ -977,7 +977,7 @@ final class PHPFinder
 		}
 
 		// Use fsutil as a fallback
-		$result = exec('fsutil fsinfo drives');
+		$result = @exec('fsutil fsinfo drives');
 
 		if ($result !== false)
 		{
