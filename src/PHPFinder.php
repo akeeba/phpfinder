@@ -121,8 +121,8 @@ final class PHPFinder
 
 		if (empty($version) || !$this->configuration->validateVersion)
 		{
-			$path = array_shift($possiblePaths);
-			$info = $this->analyzePHPVersion($path);
+			$path       = array_shift($possiblePaths);
+			$info       = $this->analyzePHPVersion($path);
 			$info->path = $path;
 
 			return $info;
@@ -241,7 +241,7 @@ final class PHPFinder
 		}
 
 		$possibleNames = $this->getBinaryNamesForVersion($version);
-		$ret = [];
+		$ret           = [];
 
 		foreach ($possibleNames as $binName)
 		{
@@ -274,7 +274,7 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec'))
+		if (!function_exists('exec') || !$this->executableExists('which'))
 		{
 			return [];
 		}
@@ -321,7 +321,7 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec'))
+		if (!function_exists('exec') || !$this->executableExists('update-alternatives'))
 		{
 			return [];
 		}
@@ -387,7 +387,7 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec'))
+		if (!function_exists('exec') || !$this->executableExists('whereis'))
 		{
 			return [];
 		}
@@ -448,7 +448,7 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec'))
+		if (!function_exists('exec') || !$this->executableExists('where'))
 		{
 			return [];
 		}
@@ -780,7 +780,7 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec'))
+		if (!function_exists('exec') || !$this->executableExists('brew'))
 		{
 			return [];
 		}
@@ -845,8 +845,7 @@ final class PHPFinder
 
 		$possiblePaths = array_filter(
 			$possiblePaths,
-			function ($path)
-			{
+			function ($path) {
 				return @is_dir($path);
 			}
 		);
@@ -964,7 +963,9 @@ final class PHPFinder
 		}
 
 		// First, let's try WMIC (deprecated since Windows 11)
-		$result = @exec('wmic logicaldisk get name', $output);
+		$result = $this->executableExists('wmic')
+			? @exec('wmic logicaldisk get name', $output)
+			: false;
 
 		if ($result !== false)
 		{
@@ -977,7 +978,9 @@ final class PHPFinder
 		}
 
 		// Use fsutil as a fallback
-		$result = @exec('fsutil fsinfo drives');
+		$result = $this->executableExists('fsutil')
+			? @exec('fsutil fsinfo drives')
+			: false;
 
 		if ($result !== false)
 		{
@@ -1081,7 +1084,9 @@ final class PHPFinder
 			return $ret;
 		}
 
-		$result = @exec(escapeshellcmd($path) . ' -v', $output);
+		$result = @file_exists($path)
+		          && $this->isExecutable($path)
+		          && @exec(escapeshellcmd($path) . ' -v', $output);
 
 		if (!$result)
 		{
@@ -1142,5 +1147,59 @@ final class PHPFinder
 		}
 
 		return $possiblePaths;
+	}
+
+	/**
+	 * Checks whether a command exists in the user's PATH, and points to an executable file.
+	 *
+	 * @param   string  $command  The command to check for.
+	 *
+	 * @return  bool
+	 * @since   1.0.0
+	 */
+	private function executableExists(string $command): bool
+	{
+		$path = getenv('PATH');
+
+		if (empty($path))
+		{
+			return false;
+		}
+
+		$directories = explode(PATH_SEPARATOR, $path);
+
+		foreach ($directories as $directory)
+		{
+			$fullPath = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $command;
+
+			if ($this->isExecutable($fullPath))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function isExecutable(string $fullPath): bool
+	{
+		if (@is_executable($fullPath))
+		{
+			return true;
+		}
+
+		if (
+			(strtoupper(PHP_OS_FAMILY) === 'WINDOWS')
+			&& (
+				@is_executable($fullPath . '.exe')
+				|| @is_executable($fullPath . '.com')
+				|| @is_executable($fullPath . '.bat')
+			)
+		)
+		{
+			return true;
+		}
+
+		return false;
 	}
 }
