@@ -29,7 +29,7 @@ We have mass-distributed web applications which are meant to be installed and op
 
 Oftentimes we provide CLI scripts, or integrations with such (e.g. integration with Joomla! CLI, or WP-CLI). The user needs very precise instructions to execute these CLI scripts, directly or in a CRON jobs. 
 
-This requires two things: the path the PHP CLI executable, and the path to the script they need to execute. The latter is easy to determine from the web application. The former is not. This is what this library does. It tries to locate the PHP CLI binary on the server.
+This requires two things: the path to the PHP CLI executable, and the path to the script they need to execute. The latter is easy to determine from the web application. The former is not. This is what this library does. It tries to locate the PHP CLI binary on the server.
 
 ## Basic usage
 
