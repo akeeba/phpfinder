@@ -3,7 +3,7 @@
  * PHPFinder – Locate the PHP CLI binary on the server.
  *
  * @package      PHPFinder
- * @copyright    (c) 2024-2025 Akeeba Ltd
+ * @copyright    (c) 2024-2026 Akeeba Ltd
  * @license      MIT
  *
  * @noinspection PhpUnusedPrivateFieldInspection
