@@ -116,3 +116,7 @@ If the attempt to use this library fails the flag is set to `false` since the se
 **Search by major version**. Searching for a PHP version just by its major version is NOT supported for practical reasons and because minor PHP versions introduce backwards incompatible changes. Searching for PHP 8 could for example return 8.4, or 8.0. You wouldn't know which one it would return in advance, and it might be a version that's incompatible with your software! If you want to simulate this very inefficient and inaccurate search, you can look for PHP x.6, x.5, x.4, x.3, x.2, x.1, and x.0 in this order, returning whichever is found first. Do keep in mind that just because you can doesn't mean you should.
 
 **PHP configuration**. Most servers have a _separate_ configuration for PHP CLI than the one used for the web SAPI (mod_php, CGI, or FastCGI). This is a non-obvious caveat which needs to be communicated to your users. There is no good, fool-proof way to automate using the same configuration across PHP and the web in those environments.
+
+## Regulatory status (EU Cyber Resilience Act)
+
+PHPFinder is not monetized and is not placed on the market within the meaning of Regulation (EU) 2024/2847; Akeeba Ltd acts as its open-source software steward under Article 24 of that Regulation
