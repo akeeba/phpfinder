@@ -119,4 +119,4 @@ If the attempt to use this library fails the flag is set to `false` since the se
 
 ## Regulatory status (EU Cyber Resilience Act)
 
-PHPFinder is not monetized and is not placed on the market within the meaning of Regulation (EU) 2024/2847; Akeeba Ltd acts as its open-source software steward under Article 24 of that Regulation
+PHPFinder is not monetized and is not placed on the market within the meaning of Regulation (EU) 2024/2847; Akeeba Ltd acts as its open-source software steward under Article 24 of that Regulation.
