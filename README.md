@@ -4,6 +4,9 @@ Locate the PHP CLI binary on the server.
 
 **Please read the Caveats section thoroughly before using this library.**
 
+> [!IMPORTANT]
+> Developing and maintaining world-class software is neither easy nor free. The development of this software is subsidised by sales of our commercial offerings. If you like this software and would like to see it maintained in the future, please consider [purchasing a subscription](https://www.akeeba.com/subscribe.html) to one of our commercial offerings. _Thank you!_
+
 ## What's this?
 
 This library locates the PHP CLI binary from the web (Apache mod_php, CGI, or FastCGI) execution context.
