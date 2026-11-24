@@ -868,11 +868,13 @@ final class PHPFinder
 			$possiblePaths[$drive . '\\Program Files\\WampServer\\bin\\php']       = 1;
 		}
 
+		// The paths are the keys; the values are the scan depths.
 		$possiblePaths = array_filter(
 			$possiblePaths,
 			function ($path) {
 				return @is_dir($path);
-			}
+			},
+			ARRAY_FILTER_USE_KEY
 		);
 
 		if (empty($possiblePaths))
