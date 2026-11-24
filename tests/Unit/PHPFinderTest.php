@@ -12,7 +12,6 @@ namespace Akeeba\PHPFinder\Tests\Unit;
 use Akeeba\PHPFinder\Configuration;
 use Akeeba\PHPFinder\PHPFinder;
 use Akeeba\PHPFinder\Tests\Support\FakeSystem;
-use Akeeba\PHPFinder\Tests\Support\KnownBug;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,7 +20,6 @@ use PHPUnit\Framework\TestCase;
 final class PHPFinderTest extends TestCase
 {
 	use FakeSystem;
-	use KnownBug;
 
 	protected function setUp(): void
 	{
@@ -335,18 +333,61 @@ final class PHPFinderTest extends TestCase
 
 	public function testPathsWithSpacesAreAnalysed(): void
 	{
+		// Used to run escapeshellcmd($path) . " -v". escapeshellcmd() does not quote, so a path with a space
+		// (C:\Program Files\…, /Applications/MAMP PRO/…) was split into several words and never run.
 		$php = $this->fakePhp('dir with spaces/php59', '5.9.1');
 
-		$this->expectKnownBug(
-			'analyzePHPVersion() runs escapeshellcmd($path) . " -v". escapeshellcmd() does not quote, so a path '
-			. 'with a space (C:\\Program Files\\…, /Applications/MAMP PRO/…) is split into several words and the '
-			. 'binary is never run. It should use escapeshellarg().',
-			function () use ($php) {
-				$info = $this->callPrivate(new PHPFinder(), 'analyzePHPVersion', [$php]);
+		$info = $this->callPrivate(new PHPFinder(), 'analyzePHPVersion', [$php]);
 
-				$this->assertSame('5.9.1', $info->version);
-				$this->assertTrue($info->cli);
-			}
+		$this->assertSame('5.9.1', $info->version);
+		$this->assertTrue($info->cli);
+	}
+
+	public function testPathsWithShellMetacharactersAreAnalysed(): void
+	{
+		// escapeshellcmd() backslash-escaped these, which inside a path made it point somewhere else.
+		$php = $this->fakePhp("it's a \$HOME & (dir); `x`/php59", '5.9.1');
+
+		$info = $this->callPrivate(new PHPFinder(), 'analyzePHPVersion', [$php]);
+
+		$this->assertSame('5.9.1', $info->version);
+		$this->assertTrue($info->cli);
+	}
+
+	public function testExecutablePathQuoting(): void
+	{
+		$finder = new PHPFinder();
+
+		// POSIX: escapeshellarg().
+		foreach (['Linux', 'Darwin', 'BSD', 'Solaris'] as $os)
+		{
+			$this->assertSame(
+				"'/Applications/MAMP PRO/php'",
+				$this->callPrivate($finder, 'quoteExecutablePath', ['/Applications/MAMP PRO/php', $os]),
+				$os
+			);
+		}
+
+		$this->assertSame(
+			"'/opt/it'\\''s/php'",
+			$this->callPrivate($finder, 'quoteExecutablePath', ["/opt/it's/php", 'Linux'])
+		);
+
+		// Windows: plain double quotes, which cmd.exe strips. escapeshellarg() would turn the ! and % of a legal
+		// path into spaces.
+		$this->assertSame(
+			'"C:\\Program Files\\PHP 8.4!\\php.exe"',
+			$this->callPrivate($finder, 'quoteExecutablePath', ['C:\\Program Files\\PHP 8.4!\\php.exe', 'Windows'])
+		);
+		$this->assertSame(
+			'"C:\\100% PHP\\php.exe"',
+			$this->callPrivate($finder, 'quoteExecutablePath', ['C:\\100% PHP\\php.exe', 'Windows'])
+		);
+
+		// A double quote cannot be part of a Windows path; it must never close the quoted string early.
+		$this->assertSame(
+			'"C:\\a  & calc &  \\php.exe"',
+			$this->callPrivate($finder, 'quoteExecutablePath', ['C:\\a" & calc & "\\php.exe', 'Windows'])
 		);
 	}
 

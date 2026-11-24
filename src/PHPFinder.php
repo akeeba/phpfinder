@@ -1116,7 +1116,7 @@ final class PHPFinder
 
 		$result = @file_exists($path)
 		          && $this->isExecutable($path)
-		          && @exec(escapeshellcmd($path) . ' -v', $output);
+		          && @exec($this->quoteExecutablePath($path, PHP_OS_FAMILY) . ' -v', $output);
 
 		if (!$result)
 		{
@@ -1145,6 +1145,36 @@ final class PHPFinder
 		}
 
 		return $ret;
+	}
+
+	/**
+	 * Quote the path to an executable, so that it is run as one word whatever characters it contains (spaces in
+	 * C:\Program Files\… or /Applications/MAMP PRO/…, quotes, $, &, …).
+	 *
+	 * On Windows, PHP runs commands through `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"`
+	 * (PHP 8), both of which strip the outer pair of quotes and run the rest verbatim, so the executable only needs
+	 * plain double quotes. escapeshellarg() is not used there because it turns the %, ! and " characters into
+	 * spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned into a space,
+	 * as escapeshellarg() does, so that it can never end the quoted string early. Limitation: cmd.exe still
+	 * expands %NAME% inside double quotes when NAME is a defined environment variable, and that cannot be escaped
+	 * on a cmd.exe command line.
+	 *
+	 * Everywhere else, escapeshellarg() single-quotes the path for /bin/sh.
+	 *
+	 * @param   string  $path      The path to the executable.
+	 * @param   string  $osFamily  The OS family, as in PHP_OS_FAMILY.
+	 *
+	 * @return  string
+	 * @since   1.0.2
+	 */
+	private function quoteExecutablePath(string $path, string $osFamily): string
+	{
+		if (strtoupper($osFamily) === 'WINDOWS')
+		{
+			return '"' . str_replace('"', ' ', $path) . '"';
+		}
+
+		return escapeshellarg($path);
 	}
 
 	/**
