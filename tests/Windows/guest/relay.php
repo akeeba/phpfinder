@@ -14,7 +14,7 @@
  *
  * The host-side suite (AbstractWindowsTestCase) keeps that SSH session open and writes one JSON request per line:
  *
- *   {"runner": "8.5" | "8.4-x86" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
+ *   {"runner": "8.5" | "8.4-x86" | "8.4-dx" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
  *
  * With "noProcOpen", the probe runs with proc_open() disabled (-d disable_functions=proc_open), so that the library
  * falls back to exec(); not for "iis", whose php.ini the relay cannot change per request.
@@ -27,6 +27,9 @@
  * {"plant": {"C:\\PHP89\\php.exe": "<base64 of its bytes>", …}} writes files for a test, wherever a search strategy
  * looks, creating their directories; {"unplant": true} removes them all, and those directories. It never overwrites a
  * file it did not write. The same answer as above.
+ *
+ * A runner <X.Y>-dx is <X.Y> with cmd.exe's delayed expansion turned on in the registry (HKLM and HKCU) while the probe
+ * runs.
  *
  * For a PHP version, the relay runs C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request> in a new process, without
  * a shell (so nothing is re-quoted on the way), in the empty directory C:\pf\work (`where` looks in the current
@@ -89,12 +92,19 @@ while (($line = fgets($stdin)) !== false)
 
 		$answer = ['status' => $status === 200 ? 0 : $status, 'stdout' => (string) $body, 'stderr' => ''];
 	}
-	elseif (preg_match('/^\d+\.\d+(-x86)?$/', $runner) && is_file('C:\\pf\\run\\' . $runner . '\\php.exe'))
+	elseif (
+		preg_match('/^(\d+\.\d+(?:-x86)?)(-dx)?$/', $runner, $runnerParts)
+		&& is_file('C:\\pf\\run\\' . $runnerParts[1] . '\\php.exe')
+	)
 	{
+		// A -dx runner: the same PHP, with cmd.exe's delayed expansion turned on in the registry for the request.
+		$delayedExpansion = !empty($runnerParts[2]);
+		$delayedExpansion && setDelayedExpansion(true);
+
 		$errFile = tempnam(sys_get_temp_dir(), 'pfe');
 		$process = proc_open(
 			array_merge(
-				['C:\\pf\\run\\' . $runner . '\\php.exe', '-n'],
+				['C:\\pf\\run\\' . $runnerParts[1] . '\\php.exe', '-n'],
 				empty($message['noProcOpen']) ? [] : ['-d', 'disable_functions=proc_open'],
 				['C:\\pf\\probe.php', $request]
 			),
@@ -108,6 +118,8 @@ while (($line = fgets($stdin)) !== false)
 		$status = proc_close($process);
 		$answer = ['status' => $status, 'stdout' => $out, 'stderr' => (string) file_get_contents($errFile)];
 		@unlink($errFile);
+
+		$delayedExpansion && setDelayedExpansion(false);
 	}
 	else
 	{
@@ -116,6 +128,23 @@ while (($line = fgets($stdin)) !== false)
 
 	fwrite($stdout, json_encode($answer) . "\n");
 	fflush($stdout);
+}
+
+/**
+ * Turn cmd.exe's delayed expansion on (DelayedExpansion = 1) or off (no value, Windows' default) in the registry, for
+ * the machine and for the user the relay and the probe run as. The VM's snapshot restores the registry anyway.
+ */
+function setDelayedExpansion(bool $on): void
+{
+	foreach (['HKLM', 'HKCU'] as $hive)
+	{
+		$key = $hive . '\\Software\\Microsoft\\Command Processor';
+		$command = $on
+			? 'C:\\Windows\\System32\\reg.exe add "' . $key . '" /v DelayedExpansion /t REG_DWORD /d 1 /f'
+			: 'C:\\Windows\\System32\\reg.exe delete "' . $key . '" /v DelayedExpansion /f';
+
+		exec($command . ' >NUL 2>&1');
+	}
 }
 
 /**

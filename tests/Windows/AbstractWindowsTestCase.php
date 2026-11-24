@@ -63,6 +63,9 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const ODD_DEFINED_VAR_85   = self::ODD_DEFINED_VAR_DIR . '\\php.exe';
 	protected const ODD_NO_PERCENT_85    = 'C:\\pf\\odd & (x) !bang ^caret\\php.exe';
 	protected const ODD_EXPANDED_83      = 'C:\\pf\\odd Windows_NT\\php.exe';
+	protected const ODD_NO_BANG_85       = 'C:\\pf\\odd & (x) ^caret\\php.exe';
+	/** What cmd.exe makes of it with delayed expansion on: ODD_EXPANDED_83. */
+	protected const ODD_DELAYED_VAR_85   = 'C:\\pf\\odd !OS!\\php.exe';
 	protected const PATH_EXT_COM         = 'C:\\pf\\path-ext\\php.com';
 	protected const BROKEN_EXE           = 'C:\\pf\\fake\\broken\\php.exe';
 	protected const EMPTY_EXE            = 'C:\\pf\\fake\\zero\\php.exe';
@@ -77,6 +80,10 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const WIN_FSUTIL_ERROR = 'C:\\pf\\fakewin\\fsutil-error';
 	protected const WIN_ALL_FAIL     = 'C:\\pf\\fakewin\\all-fail';
 	protected const WIN_EMPTY        = 'C:\\pf\\fakewin\\empty';
+	/** A `where` which finds nothing; with delayed expansion on, cmd.exe makes WIN_DX_EXPANDED of this path. */
+	protected const WIN_DX_DELAYED_VAR = 'C:\\pf\\fakewin\\dx !OS!';
+	/** A `where` which finds PATH_A_81, and leaves where.ran in System32. */
+	protected const WIN_DX_EXPANDED    = 'C:\\pf\\fakewin\\dx Windows_NT';
 
 	/** A working directory with stand-ins for where, wmic, fsutil and PowerShell, which leave a <name>.ran file. */
 	protected const PLANTED_DIR     = 'C:\\pf\\planted';
@@ -96,7 +103,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 	private static $relayErrors;
 
 	/**
-	 * The runner of this PHPUnit run: a PHP version (e.g. 8.5), a 32-bit PHP version (e.g. 8.4-x86) or "iis".
+	 * The runner of this PHPUnit run: a PHP version (e.g. 8.5), a 32-bit PHP version (e.g. 8.4-x86), a PHP version with
+	 * cmd.exe's delayed expansion on (e.g. 8.4-dx) or "iis".
 	 */
 	protected static function runnerName(): string
 	{
@@ -250,6 +258,14 @@ abstract class AbstractWindowsTestCase extends TestCase
 				sprintf('The %d-bit runner %s %s', $response['bits'], $hide ? 'still sees' : 'does not see', $tool)
 			);
 		}
+	}
+
+	/**
+	 * Whether this run's runner has cmd.exe's delayed expansion turned on in the registry (a <X.Y>-dx runner).
+	 */
+	protected static function isDelayedExpansion(): bool
+	{
+		return substr(self::runnerName(), -3) === '-dx';
 	}
 
 	/**

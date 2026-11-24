@@ -27,6 +27,8 @@ final class QuotingTest extends AbstractWindowsTestCase
 	{
 		// % (of an undefined variable), &, (, ), ! and ^.
 		$this->assertRuns(self::ODD_85, '8.5.');
+		// !OS!, which cmd.exe would expand with delayed expansion on (the -dx runners): no cmd.exe here.
+		$this->assertRuns(self::ODD_DELAYED_VAR_85, '8.5.');
 	}
 
 	public function testPathWithCmdMetacharactersFoundThroughWhere(): void

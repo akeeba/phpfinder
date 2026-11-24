@@ -26,8 +26,8 @@ Docker integration suite. Both work on a fresh checkout, given a global `phpunit
   never part of `composer test` / `phing test`.** PHPUnit on the host drives the library on a real Windows Server 2022:
   the shared IIS test VM of `../buildfiles/vm/iis`, under QEMU/KVM on a Linux KVM host. Give the host with
   `--host=<ssh host>` or `WINDOWS_KVM_HOST` (no default). The guest downloads the pinned PHP builds in
-  `tests/Windows/downloads` and runs the suite under each (7.2 to 8.6, and 32-bit 7.2 and 8.4 under WoW64) and under
-  IIS. Only one run can use the VM at a time: `run.sh` refuses a running VM and stops the one it started on every exit
+  `tests/Windows/downloads` and runs the suite under each (7.2 to 8.6, 32-bit 7.2 and 8.4 under WoW64, and 7.2 and 8.4 with `cmd.exe`'s delayed
+  expansion on) and under IIS. Only one run can use the VM at a time: `run.sh` refuses a running VM and stops the one it started on every exit
   path. Never `build --force` or `destroy` the VM, and never change `../buildfiles` from this project.
   `tests/Windows/README.md` explains the fixtures, the options and what the real Windows tools print.
 - PHPUnit is the **global** `phpunit`: never add `phpunit/phpunit` to `composer.json`. `config.platform.php` is

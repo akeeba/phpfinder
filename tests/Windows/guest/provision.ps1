@@ -158,6 +158,9 @@ New-Fixture '8.5' "$pf\odd %OS%"
 # The same characters without a %, and what C:\pf\odd %OS%\php.exe becomes when cmd.exe expands %OS% (another version).
 New-Fixture '8.5' "$pf\odd & (x) !bang ^caret"
 New-Fixture '8.3' "$pf\odd Windows_NT"
+# Without a ! either; and !OS!, which cmd.exe expands into Windows_NT, like %OS%, when delayed expansion is on.
+New-Fixture '8.5' "$pf\odd & (x) ^caret"
+New-Fixture '8.5' "$pf\odd !OS!"
 
 # A php.exe which is not a program at all.
 New-Item -ItemType Directory -Force "$pf\fake\broken" | Out-Null
@@ -252,6 +255,12 @@ Add-FakeWindowsTool 'all-fail' $wmic   "`r`r`n`r`r`n"
 Add-FakeWindowsTool 'all-fail' $fsutil "Error:  Access is denied.`r`n" 1
 Add-FakeWindowsTool 'all-fail' $ps     "Program 'powershell.exe' failed to run: Access is denied`r`n" 1
 New-Item -ItemType Directory -Force "$w\empty" | Out-Null
+# A Windows directory whose path has !OS! in it, with a `where` which finds nothing, and the directory cmd.exe makes of
+# it when delayed expansion is on, with a `where` which finds PHP 8.1 (C:\pf\path-a): a test tells them apart by what
+# `where` finds, and by the <name>.ran file the second one leaves.
+Add-FakeWindowsTool 'dx !OS!' 'System32\where.exe' '' 1
+Add-FakeWindowsTool 'dx Windows_NT' 'System32\where.exe' "$pf\path-a\php.exe`r`n"
+& icacls "$w\dx Windows_NT\System32" /grant 'Everyone:(OI)(CI)M' | Out-Null
 
 # A working directory with stand-ins for where, wmic, fsutil and PowerShell, which print nothing (so that code which
 # runs them by their bare names would try every one in turn), and one with a stand-in cmd.exe. Writable by IIS's
@@ -279,5 +288,6 @@ foreach ($tool in $wmic, $fsutil, ($wmic -replace '^System32', 'SysWOW64'), ($fs
 Copy-Item "$pf\iis-probe.php" C:\inetpub\wwwroot\pf-probe.php
 $page = (Invoke-WebRequest -UseBasicParsing 'http://localhost/pf-probe.php?ping=1').Content
 if ($page -ne 'pf-probe-ok') { throw "IIS probe answered: $page" }
+
 
 'PF-PROVISION-OK'

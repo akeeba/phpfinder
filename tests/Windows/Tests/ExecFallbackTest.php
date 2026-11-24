@@ -31,9 +31,45 @@ final class ExecFallbackTest extends AbstractWindowsTestCase
 	{
 		$this->assertAnalyzed(self::PROGRAM_FILES_82, '8.2.');
 		$this->assertAnalyzed(self::PROGRAM_FILES_X86_81, '8.1.');
-		// &, (, ), ! and ^ between double quotes: literal for cmd.exe (delayed expansion is off unless the registry
-		// turns it on).
-		$this->assertAnalyzed(self::ODD_NO_PERCENT_85, '8.5.');
+		// &, (, ) and ^ between double quotes: literal for cmd.exe, with delayed expansion on too.
+		$this->assertAnalyzed(self::ODD_NO_BANG_85, '8.5.');
+	}
+
+	public function testDelayedExpansionIsOnOnlyForItsRunners(): void
+	{
+		// The control for the test below: a -dx runner's cmd.exe expands !OS!, the others' leave it alone.
+		$response = $this->probe('exec', null, [], self::PATH_SYSTEM, [], 'echo !OS!', null, self::NO_PROC_OPEN);
+
+		$this->assertSame([self::isDelayedExpansion() ? 'Windows_NT' : '!OS!'], $response['result']['lines']);
+	}
+
+	public function testPathsWithAnExclamationMarkAreNotRun(): void
+	{
+		// With cmd.exe's delayed expansion on (the registry's DelayedExpansion), cmd.exe expands !OS! even between
+		// double quotes: C:\pf\odd !OS!\php.exe used to run C:\pf\odd Windows_NT\php.exe, another binary (PHP 8.3),
+		// and report ITS version for this path; and a lone ! is dropped, so C:\pf\odd & (x) !bang ^caret\php.exe ran
+		// nothing. Whether delayed expansion is on is not known in advance: no path with a ! runs through cmd.exe.
+		$this->assertAnalyzed(self::ODD_EXPANDED_83, '8.3.');
+		$this->assertAnalyzed(self::ODD_DELAYED_VAR_85, null);
+		$this->assertAnalyzed(self::ODD_NO_PERCENT_85, null);
+	}
+
+	public function testWindowsToolsInADirectoryWithAnExclamationMarkAreNotRun(): void
+	{
+		// Windows' tools run through cmd.exe too: the tools' wrapper with proc_open(), exec() without. With delayed
+		// expansion on, the `where` of C:\pf\fakewin\dx !OS! used to be C:\pf\fakewin\dx Windows_NT's, which finds
+		// PHP 8.1 and leaves where.ran in the working directory, either way.
+		foreach ([[], self::NO_PROC_OPEN] as $options)
+		{
+			$response = $this->probe(
+				'getPossiblePaths', '8.1', self::isolated(['useWhere' => true]), self::PATH_SYSTEM, [], null,
+				self::WIN_DX_EXPANDED . '\\System32', $options + ['windowsDirectory' => self::WIN_DX_DELAYED_VAR]
+			);
+
+			$this->assertSame([], $response['result'], json_encode($options));
+			$this->assertSame([], $response['ran'], 'Another `where` ran ' . json_encode($options));
+			$this->assertClean($response);
+		}
 	}
 
 	public function testPathsWithAPercentSignAreNotRun(): void

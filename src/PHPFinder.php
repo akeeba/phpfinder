@@ -1332,7 +1332,7 @@ final class PHPFinder
 	 *   directory, so a cmd.exe in the application's working directory would run instead.
 	 *
 	 * With $throughCmd, the program runs through Windows' own cmd.exe, by its full path. This is for Windows' own tools,
-	 * whose paths have no %. Under IIS with fastcgi.impersonate=1 (php.ini's advice for IIS; the default is 0), a
+	 * whose paths have no % or !. Under IIS with fastcgi.impersonate=1 (php.ini's advice for IIS; the default is 0), a
 	 * program which proc_open() starts directly fails: PowerShell with "Loading managed Windows PowerShell failed with
 	 * error 80070005", whoami with "Access is denied" (where, wmic, fsutil and php.exe -v work). Started by cmd.exe,
 	 * both work. With fastcgi.impersonate=0 both work either way, so the impersonation is what triggers the failure
@@ -1341,11 +1341,10 @@ final class PHPFinder
 	 * is owned by IUSR and only IUSR and SYSTEM may open it, so a program which opens its own token is denied. cmd.exe
 	 * does not; the programs it starts get a token their identity may open.
 	 *
-	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % in
-	 * it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder can
-	 * do about that). Spaces, &, (, ), ^ and ! are fine between double quotes (unless the registry turns cmd.exe's
-	 * delayed expansion on, which makes !NAME! expand like %NAME%). This depends on the OS PHP really runs on, like
-	 * getNullDevice().
+	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % or
+	 * a ! in it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder
+	 * can do about that). Spaces, &, (, ) and ^ are fine between double quotes. This depends on the OS PHP really runs
+	 * on, like getNullDevice().
 	 *
 	 * @param   string    $executable  The full path to the program.
 	 * @param   string    $arguments   Its arguments, quoted for its command line.
@@ -1366,8 +1365,12 @@ final class PHPFinder
 
 		// cmd.exe would expand a %NAME% in the path, even between double quotes, when NAME is a defined environment
 		// variable, and run another program, if there is one at the path that makes. Whether a name is defined is
-		// not known in advance (cmd.exe inherits the environment, which putenv() changes), so no such path runs.
-		if ($isWindows && ($throughCmd || !$procOpen) && strpos($executable, '%') !== false)
+		// not known in advance (cmd.exe inherits the environment, which putenv() changes), so no such path runs. The
+		// same for !NAME! when the registry turns cmd.exe's delayed expansion on (DelayedExpansion, under HKLM or HKCU
+		// \Software\Microsoft\Command Processor), which also drops a lone !: whether it is on is not known either. It
+		// cannot be turned off for PHP's own cmd.exe (exec()), and a cmd.exe /v:off inside it comes too late: the outer
+		// one has already expanded the line (Windows Server 2022).
+		if ($isWindows && ($throughCmd || !$procOpen) && strpbrk($executable, '%!') !== false)
 		{
 			return null;
 		}
@@ -1435,7 +1438,8 @@ final class PHPFinder
 	 * by the C runtime's rules, for which plain double quotes are enough. Through exec(), PHP runs commands with
 	 * `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"` (PHP 8), both of which strip the outer pair of
 	 * quotes and run the rest verbatim, so plain double quotes work there too, save for a %NAME% of a defined
-	 * environment variable, which cmd.exe expands (runProgram() never runs a path with a % through exec()).
+	 * environment variable, which cmd.exe expands, and a !NAME! when delayed expansion is on (runProgram() never runs a
+	 * path with a % or a ! through cmd.exe).
 	 * escapeshellarg() is not used because it turns the %, ! and "
 	 * characters into spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned
 	 * into a space, as escapeshellarg() does, so that it can never end the quoted string early.

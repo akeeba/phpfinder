@@ -24,7 +24,7 @@ and the Windows code paths are checked against the real thing.
 ## Quick start
 
 ```bash
-tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, then IIS
+tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, -dx, then IIS
 WINDOWS_KVM_HOST=<ssh host> composer test:windows  # the same
 tests/Windows/run.sh --host=<ssh host> --runner=7.2,iis --filter DrivesTest
 ```
@@ -36,7 +36,7 @@ There is no default host: without `--host` or `WINDOWS_KVM_HOST`, `run.sh` stops
 | Option | What it does |
 |---|---|
 | `--host=HOST` | The KVM host (an SSH destination, or `local`). Default: `WINDOWS_KVM_HOST` |
-| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 iis` (default: all) |
+| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis` (default: all) |
 | `-f`, `--filter=NAME` | Passed to PHPUnit as `--filter` |
 | `--src=DIR` | Put this directory's `PHPFinder.php` and `Configuration.php` into the guest instead of `src/`, e.g. a revision exported with `git show <rev>:src/…`, to show a test failing on the code before a fix |
 | `--keep-vm` | Leave the VM running afterwards, to iterate with `PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter …` |
@@ -88,6 +88,8 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
 | `C:\pf\odd Windows_NT\php.exe` | **8.3** | what `C:\pf\odd %OS%\php.exe` becomes when `cmd.exe` expands `%OS%`: another binary |
+| `C:\pf\odd & (x) ^caret\php.exe` | 8.5 | the same characters without a `%` or a `!`: through `exec()` with delayed expansion on too |
+| `C:\pf\odd !OS!\php.exe` | 8.5 | what `cmd.exe` turns into `C:\pf\odd Windows_NT\php.exe` when its delayed expansion is on (`ExecFallbackTest`, the `-dx` runners) |
 | `C:\pf\pe-names\php.bat`, `php.cmd`, `php.com` | 8.1 | real programs under the names of scripts, and no `php.exe`: never returned or run (`NonProgramsTest`) |
 | `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate, nor run when `analyzePHPVersion()` is given it directly |
 | `C:\pf\fake\zero\php.exe` | none | an empty `php.exe`: never a candidate |
@@ -136,6 +138,7 @@ C# compiler (`Add-Type -OutputType ConsoleApplication`) and copies under each to
 | `C:\pf\fakewin\wmic-error` | a `wmic` which prints an error on STDOUT, an `fsutil` which lists the drives | `DrivesTest` |
 | `C:\pf\fakewin\fsutil-error` | no `wmic`, an `fsutil` which prints an error, a PowerShell which lists the drives | `DrivesTest` |
 | `C:\pf\fakewin\all-fail`, `C:\pf\fakewin\empty` | every tool failing; no tool at all | `DrivesTest` |
+| `C:\pf\fakewin\dx !OS!`, `C:\pf\fakewin\dx Windows_NT` | a `where` which finds nothing; one which finds `C:\pf\path-a\php.exe`, in what `cmd.exe` makes of the first path with delayed expansion on | `ExecFallbackTest` |
 | `C:\pf\planted` | `where.exe`, `wmic.exe`, `fsutil.exe`, `powershell.exe`, printing nothing: a working directory | `WorkingDirectoryTest`, `ExecFallbackTest` |
 | `C:\pf\planted-cmd` | `cmd.exe`, printing nothing: a working directory | `WorkingDirectoryTest` |
 
@@ -144,6 +147,19 @@ C# compiler (`Add-Type -OutputType ConsoleApplication`) and copies under each to
 Some hosts disable `proc_open()`; PHPFinder then falls back to `exec()`, which runs everything through `cmd.exe`.
 `ExecFallbackTest` asks the relay to run the probe with `-d disable_functions=proc_open` (`"noProcOpen"`), on every CLI
 runner; IIS's `php.ini` cannot change per request, so it skips there.
+
+### `cmd.exe`'s delayed expansion
+
+With `DelayedExpansion` set to 1 under `HKLM` or `HKCU\Software\Microsoft\Command Processor`, `cmd.exe` expands
+`!NAME!` like `%NAME%`, even between double quotes, and drops a lone `!` (`/d` does not stop it; `/v:off` does, but PHP's
+`exec()` cannot pass it, and a `cmd.exe /v:off` inside `exec()`'s comes too late: the outer one has expanded the line
+already). The **`7.2-dx`** and **`8.4-dx`** runners are PHP 7.2 and 8.4 with it on: the relay sets it, in both hives,
+for each request, and deletes it afterwards (the VM's snapshot restores the registry anyway). Their `cmd.exe` turned
+`C:\pf\odd !OS!\php.exe` into `C:\pf\odd Windows_NT\php.exe` (PHP 8.3) through `exec()`, and ran the `where` of
+`C:\pf\fakewin\dx Windows_NT` for that of `C:\pf\fakewin\dx !OS!` through the tools' `cmd.exe`, until PHPFinder stopped
+running any path with a `!` through `cmd.exe` (`ExecFallbackTest`). `ExecFallbackTest::testDelayedExpansionIsOnOnlyForItsRunners`
+checks that `echo !OS!` prints `Windows_NT` on those runners only. Not under IIS: what IIS runs reads `HKLM` (and the
+application pool identity's own `HKCU`), and `proc_open()` cannot be disabled there anyway.
 
 ## A second drive
 
@@ -231,8 +247,9 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
 newest), except 7.3 and 7.4, plus **IIS** (FastCGI, PHP 8.4), which is how a web application runs the library. PHP 8.0
 is covered here although the Docker suite cannot cover it. All are 64-bit non-thread-safe builds, except the two
 32-bit (x86) ones, **7.2-x86** (the floor) and **8.4-x86** (a current release), which run under WoW64 (see "What the
-real Windows prints"). Thread-safe builds, and IIS running a 32-bit PHP (an application pool with 32-bit applications
-enabled), are not tested.
+real Windows prints"). **7.2-dx** and **8.4-dx** are the 7.2 and 8.4 runners with `cmd.exe`'s delayed expansion on
+(see "`cmd.exe`'s delayed expansion"). Thread-safe builds, and IIS running a 32-bit PHP (an application pool with 32-bit
+applications enabled), are not tested.
 
 Each PHP version downloads 25 to 40 MB per run (there is no cache across runs), all in parallel: a few seconds on a fast
 connection.
@@ -247,5 +264,4 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
 - Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed (both copies, assuming
   Windows removes the 32-bit one with the 64-bit one).
-- `cmd.exe` with delayed expansion turned on in the registry (`!NAME!` would expand like `%NAME%` through `exec()`).
 - A server whose system drive is not `C:`.
