@@ -21,15 +21,6 @@ use Akeeba\PHPFinder\Tests\Integration\AbstractIntegrationTestCase;
  */
 final class HomebrewTest extends AbstractIntegrationTestCase
 {
-	/** The fake brew's directory, in the PATH only when a test puts it there. */
-	private const PATH_WITH_BREW = '/opt/pf-brew/bin:' . self::PATH_DEFAULT;
-
-	/** The php@8.3 formula's binary under the fake brew's prefix, which only `brew --prefix` reveals. */
-	private const BREW_83 = '/opt/pf-brew/opt/php@8.3/bin/php';
-
-	/** The php@8.4 formula's binary under Linuxbrew's default prefix. */
-	private const LINUXBREW_84 = '/home/linuxbrew/.linuxbrew/opt/php@8.4/bin/php';
-
 	public function testBrewIsAskedForTheVersionedFormula(): void
 	{
 		$this->assertFixture(self::BREW_83, '8.3');

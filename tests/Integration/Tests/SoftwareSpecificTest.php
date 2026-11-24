@@ -20,9 +20,6 @@ use Akeeba\PHPFinder\Tests\Integration\AbstractIntegrationTestCase;
  */
 final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 {
-	/** A real PHP 8.2 at cPanel's path for PHP 8.0, for which there is no image (fixture/fixtures.txt). */
-	private const CPANEL_80_MISLABELLED = '/opt/cpanel/ea-php80/root/usr/bin/php';
-
 	public function testCPanelPathForAZeroMinor(): void
 	{
 		$this->assertFixture(self::CPANEL_80_MISLABELLED, '8.2');

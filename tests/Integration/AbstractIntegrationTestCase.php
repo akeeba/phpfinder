@@ -30,21 +30,27 @@ abstract class AbstractIntegrationTestCase extends TestCase
 	/** The same, plus the directory only `which` can find fixtures in. */
 	protected const PATH_WITH_WHICH_DIR = '/opt/pf-which/bin:' . self::PATH_DEFAULT;
 
+	/** The same, plus the fake `brew`'s directory (docker/provision.sh). */
+	protected const PATH_WITH_BREW = '/opt/pf-brew/bin:' . self::PATH_DEFAULT;
+
 	/** The runner: the container's own PHP CLI, also PHP_BINARY inside the probe. */
 	protected const RUNNER = '/usr/local/bin/php';
 
 	// The fixtures, see fixture/fixtures.txt.
-	protected const WHICH_82          = '/opt/pf-which/bin/php82';
-	protected const WHEREIS_82        = '/usr/local/games/php82';
-	protected const DOTTED_82         = '/usr/bin/php8.2';
-	protected const UNIX_83           = '/opt/bin/php83';
-	protected const FPM_83            = '/usr/bin/php83';
-	protected const CLOUDLINUX_83     = '/opt/cloudlinux/alt-php83/root/usr/bin/php';
-	protected const MISLABELLED_84    = '/opt/bin/php84';
-	protected const EXTENDED_84       = '/usr/local/bin/php84-cli';
-	protected const CPANEL_84         = '/opt/cpanel/ea-php84/root/usr/bin/php';
-	protected const ALTERNATIVES_84   = '/opt/pf-ua/php84';
-	protected const MAMP_MAC_83       = '/Applications/MAMP/bin/php/php8.3.0/bin/php';
+	protected const WHICH_82              = '/opt/pf-which/bin/php82';
+	protected const WHEREIS_82            = '/usr/local/games/php82';
+	protected const DOTTED_82             = '/usr/bin/php8.2';
+	protected const UNIX_83               = '/opt/bin/php83';
+	protected const FPM_83                = '/usr/bin/php83';
+	protected const CLOUDLINUX_83         = '/opt/cloudlinux/alt-php83/root/usr/bin/php';
+	protected const MISLABELLED_84        = '/opt/bin/php84';
+	protected const EXTENDED_84           = '/usr/local/bin/php84-cli';
+	protected const CPANEL_84             = '/opt/cpanel/ea-php84/root/usr/bin/php';
+	protected const CPANEL_80_MISLABELLED = '/opt/cpanel/ea-php80/root/usr/bin/php';
+	protected const ALTERNATIVES_84       = '/opt/pf-ua/php84';
+	protected const BREW_83               = '/opt/pf-brew/opt/php@8.3/bin/php';
+	protected const LINUXBREW_84          = '/home/linuxbrew/.linuxbrew/opt/php@8.4/bin/php';
+	protected const MAMP_MAC_83           = '/Applications/MAMP/bin/php/php8.3.0/bin/php';
 
 	/** @var array|null */
 	private static $runnerInfo;
