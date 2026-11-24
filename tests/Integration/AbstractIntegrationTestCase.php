@@ -95,6 +95,11 @@ abstract class AbstractIntegrationTestCase extends TestCase
 	/**
 	 * A configuration with every search strategy OFF, so that a test can switch on exactly the one it is
 	 * about. Validation stays on.
+	 *
+	 * Except the fixed UNIX paths (/usr/bin, /usr/local/bin, /opt/bin): no option of their own switches them
+	 * off, only osSpecific, which is ON here so that the OS search under test can run. To keep them out,
+	 * turn osSpecific off too (for the PHP constants and the software-specific searches), or look for the
+	 * fixture only the strategy under test can find among getPossiblePaths().
 	 */
 	protected static function isolated(array $overrides = []): array
 	{
