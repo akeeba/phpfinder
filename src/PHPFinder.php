@@ -911,8 +911,9 @@ final class PHPFinder
 			return $possibleExecutables;
 		}
 
+		// phpXY (e.g. php84) and phpX.Y (e.g. php8.4, as installed by Debian and Ubuntu).
 		$suffix    = $major . ($minor ?? '');
-		$altSuffix = $major . ($minor === null ? '' : ':') . ($minor ?? '');
+		$altSuffix = $major . ($minor === null ? '' : '.') . ($minor ?? '');
 
 		$possibleExecutables[] = 'php' . $suffix;
 		$possibleExecutables[] = 'php' . $altSuffix;
@@ -931,7 +932,8 @@ final class PHPFinder
 			$possibleExecutables[] = 'php-cli' . $suffix;
 		}
 
-		return $possibleExecutables;
+		// Without a minor version, $suffix and $altSuffix are the same; don't search for each name twice.
+		return array_values(array_unique($possibleExecutables));
 	}
 
 	/**

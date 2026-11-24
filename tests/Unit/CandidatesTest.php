@@ -111,18 +111,37 @@ final class CandidatesTest extends TestCase
 
 	public function testBinaryNamesIncludeTheDottedName(): void
 	{
-		$this->expectKnownBug(
-			'getBinaryNamesForVersion() builds the "alternative" suffix with a colon (php8:4, php8:4-cli, '
-			. 'php-8:4) instead of a dot. The phpX.Y names the Configuration docblock promises, and which '
-			. 'Debian/Ubuntu actually install (/usr/bin/php8.4), are never searched for by which, whereis or '
-			. 'update-alternatives.',
-			function () {
-				$names = $this->callPrivate(new PHPFinder(), 'getBinaryNamesForVersion', ['8.4']);
+		// Used to be spelled with a colon: php8:4, php8:4-cli, php-8:4.
+		$names = $this->callPrivate(new PHPFinder(), 'getBinaryNamesForVersion', ['8.4']);
 
-				$this->assertContains('php8.4', $names);
-				$this->assertNotContains('php8:4', $names);
-			}
+		foreach (['php8.4', 'php8.4-cli', 'php-8.4'] as $name)
+		{
+			$this->assertContains($name, $names);
+		}
+
+		foreach ($names as $name)
+		{
+			$this->assertStringNotContainsString(':', $name);
+		}
+
+		$this->assertContains(
+			'php8.4',
+			$this->callPrivate(
+				new PHPFinder(Configuration::make()->setExtendedBinaryNameSearch(false)), 'getBinaryNamesForVersion', ['8.4']
+			)
 		);
+	}
+
+	public function testBinaryNamesHaveNoDuplicates(): void
+	{
+		foreach (['8', '8.4', '8.4.1'] as $version)
+		{
+			$names = $this->callPrivate(new PHPFinder(), 'getBinaryNamesForVersion', [$version]);
+
+			$this->assertSame(array_values(array_unique($names)), $names, "Binary names for $version");
+		}
+
+		$this->assertContains('php8', $this->callPrivate(new PHPFinder(), 'getBinaryNamesForVersion', ['8']));
 	}
 
 	public function testUnixPaths(): void
@@ -139,6 +158,7 @@ final class CandidatesTest extends TestCase
 			array_slice($paths, 0, 6)
 		);
 		$this->assertContains('/usr/local/bin/php-cli-84', $paths);
+		$this->assertContains('/usr/bin/php8.4', $paths);
 		$this->assertSame(['/usr/bin/php', '/usr/local/bin/php', '/opt/bin/php'], $this->callPrivate(new PHPFinder(), 'pathsUNIX', [null]));
 
 		$this->assertSame([], $this->callPrivate(new PHPFinder(Configuration::make()->setOsSpecific(false)), 'pathsUNIX', ['8.4']));

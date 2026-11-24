@@ -12,8 +12,8 @@ namespace Akeeba\PHPFinder\Tests\Integration\Tests;
 use Akeeba\PHPFinder\Tests\Integration\AbstractIntegrationTestCase;
 
 /**
- * The software-specific paths (Plesk, cPanel, CloudLinux) on Linux, plus the Debian-style phpX.Y name
- * which, as things stand, only the Plesk candidates know about.
+ * The software-specific paths (Plesk, cPanel, CloudLinux) on Linux, plus the Debian-style phpX.Y name,
+ * which the Plesk candidates and the generic binary names both cover.
  */
 final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 {
@@ -27,14 +27,8 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 
 	public function testTheDottedNameIsFoundWithoutSoftwareSpecificPaths(): void
 	{
-		$this->expectKnownBug(
-			'getBinaryNamesForVersion() spells the alternative name php8:2 instead of php8.2, so `which` never '
-			. 'looks for the /usr/bin/php8.2 Debian and Ubuntu install; only the Plesk candidate list happens to '
-			. 'contain that path.',
-			function () {
-				$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', self::isolated(['useWhich' => true])));
-			}
-		);
+		// Used to be searched for as php8:2, so only the Plesk candidate list found /usr/bin/php8.2.
+		$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', self::isolated(['useWhich' => true])));
 	}
 
 	public function testCPanelPathIsFound(): void

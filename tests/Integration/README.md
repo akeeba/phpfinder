@@ -56,7 +56,7 @@ the binary's own loader and libraries makes it independent of the runner image's
 |---|---|---|
 | `/opt/pf-which/bin/php82` | 8.2 CLI | `which`; only in the `PATH` when a test adds `/opt/pf-which/bin` |
 | `/usr/local/games/php82` | 8.2 CLI | `whereis` (in its search list, not in the `PATH`) |
-| `/usr/bin/php8.2` | 8.2 CLI | the Debian/Ubuntu dotted name; the Plesk candidates |
+| `/usr/bin/php8.2` | 8.2 CLI | the Debian/Ubuntu dotted name (fixed UNIX paths, `which`); the Plesk candidates |
 | `/opt/bin/php83` | 8.3 CLI | the fixed UNIX paths (`/opt/bin` is not in the `PATH`) |
 | `/usr/bin/php83` | 8.3 FPM | `validateCli` |
 | `/opt/bin/php84` | **8.2** CLI | `validateVersion` (a binary named for the wrong version) |

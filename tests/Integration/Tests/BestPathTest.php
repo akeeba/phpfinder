@@ -42,10 +42,11 @@ final class BestPathTest extends AbstractIntegrationTestCase
 		}
 	}
 
-	public function testDefaultsPreferTheWhichFixtureOverThePleskCandidate(): void
+	public function testDefaultsPreferTheDottedNameInTheFixedUnixPaths(): void
 	{
-		// `which` runs before the software-specific candidates.
-		$this->assertSame(self::WHICH_82, $this->bestPath('8.2', [], self::PATH_WITH_WHICH_DIR));
+		// The fixed UNIX paths, /usr/bin/php8.2 among them, come before `which`, which comes before the
+		// software-specific candidates.
+		$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', [], self::PATH_WITH_WHICH_DIR));
 		$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', [], self::PATH_DEFAULT));
 	}
 

@@ -63,6 +63,15 @@ final class PHPFinderTest extends TestCase
 		$this->assertSame($php, $meta->path);
 	}
 
+	public function testFindsTheDottedBinaryNameThroughWhich(): void
+	{
+		// The phpX.Y name Debian and Ubuntu install, e.g. /usr/bin/php8.4.
+		$php = $this->fakePhp('bin/php5.9', '5.9.1');
+
+		$this->assertSame($php, $this->finder(['useWhich' => true])->getBestPath('5.9'));
+		$this->assertSame($php, $this->finder(['useWhich' => true, 'extendedBinaryNameSearch' => false])->getBestPath('5.9'));
+	}
+
 	public function testFindsExtendedBinaryNamesOnlyWhenEnabled(): void
 	{
 		$php = $this->fakePhp('bin/php-cli-59', '5.9.2');

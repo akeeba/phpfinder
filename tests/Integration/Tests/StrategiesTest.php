@@ -22,17 +22,29 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 	{
 		$this->assertFixture(self::WHICH_82, '8.2');
 
-		$response = $this->probe('getBestPathMeta', '8.2', self::isolated(['useWhich' => true]), self::PATH_WITH_WHICH_DIR);
+		$config = self::isolated(['useWhich' => true]);
+
+		// Only `which` can find /opt/pf-which/bin/php82.
+		$this->assertContains(
+			self::WHICH_82, $this->probe('getPossiblePaths', '8.2', $config, self::PATH_WITH_WHICH_DIR)['result']
+		);
+
+		$response = $this->probe('getBestPathMeta', '8.2', $config, self::PATH_WITH_WHICH_DIR);
 
 		$this->assertNoDiagnostics($response);
-		$this->assertSame(self::WHICH_82, $response['result']['path']);
 		$this->assertStringStartsWith('8.2.', $response['result']['version']);
 		$this->assertTrue($response['result']['cli']);
+
+		// The Debian-style /usr/bin/php8.2 is one of the fixed UNIX paths, which come before `which`.
+		$this->assertSame(self::DOTTED_82, $response['result']['path']);
 	}
 
 	public function testWhichOnlySearchesThePath(): void
 	{
-		$this->assertNull($this->bestPath('8.2', self::isolated(['useWhich' => true]), self::PATH_DEFAULT));
+		$this->assertNotContains(
+			self::WHICH_82,
+			$this->probe('getPossiblePaths', '8.2', self::isolated(['useWhich' => true]), self::PATH_DEFAULT)['result']
+		);
 	}
 
 	public function testWhichIsGated(): void
