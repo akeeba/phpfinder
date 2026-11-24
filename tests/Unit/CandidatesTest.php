@@ -377,15 +377,32 @@ final class CandidatesTest extends TestCase
 	public function testWampServerPaths(): void
 	{
 		// WAMPServer keeps each PHP version in its own directory: <drive>\wamp64\bin\php\php8.3.6\php.exe
-		$this->fakePhp('C:\\wamp64\\bin\\php/php8.3.6/php.exe', '5.9.1');
-		$this->fakePhp('D:\\wamp\\bin\\php/php5.9.2/php.exe', '5.9.2');
+		$wamp64 = $this->fakePhp('C:\\wamp64\\bin\\php/php8.3.6/php.exe', '5.9.1');
+		$wamp   = $this->fakePhp('D:\\wamp\\bin\\php/php5.9.2/php.exe', '5.9.2');
 		$this->fakePhp('D:\\wamp\\bin\\php/php5.9.2/php-cgi.exe', '5.9.2', 'cgi-fcgi');
 
 		$finder = $this->simulateOs($this->finder(['softwareSpecific' => true]), 'Windows');
 		$this->setPrivate($finder, 'windowsDrives', [$this->fakeWindowsDrive('C'), $this->fakeWindowsDrive('D')]);
 
 		// Used to filter the path => depth map on its VALUES, calling is_dir(1): no directory was ever kept.
-		$this->assertNotEmpty($this->callPrivate($finder, 'pathsWAMPServer', ['5.9']));
+		// It also appended each scan's result as ONE element ($ret[] = array_merge(…)), returning nested
+		// arrays, on which getPossiblePaths()' is_file() is a TypeError on PHP 8.
+		[$paths, $diagnostics] = $this->withDiagnostics(function () use ($finder) {
+			return $this->callPrivate($finder, 'pathsWAMPServer', ['5.9']);
+		});
+
+		sort($paths);
+
+		$this->assertSame([$wamp64, $wamp], $paths);
+		$this->assertSame([], $diagnostics);
+
+		[$possible, $diagnostics] = $this->withDiagnostics(function () use ($finder) {
+			return $finder->getPossiblePaths('5.9');
+		});
+
+		$this->assertContains($wamp64, $possible);
+		$this->assertContains($wamp, $possible);
+		$this->assertSame([], $diagnostics);
 	}
 
 	public function testRecursivePathScannerHonoursTheDepth(): void

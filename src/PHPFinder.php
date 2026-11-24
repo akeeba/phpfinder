@@ -886,7 +886,7 @@ final class PHPFinder
 
 		foreach ($possiblePaths as $path => $maxDepth)
 		{
-			$ret[] = array_merge($ret, $this->recursivePathScanner($path, 0, $maxDepth, ['php']));
+			$ret = array_merge($ret, $this->recursivePathScanner($path, 0, $maxDepth, ['php']));
 		}
 
 		return $ret;
