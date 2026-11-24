@@ -240,6 +240,8 @@ final class Configuration
 		if (property_exists($this, $name))
 		{
 			$this->{$name} = @boolval($value);
+
+			return;
 		}
 
 		throw new \InvalidArgumentException(
