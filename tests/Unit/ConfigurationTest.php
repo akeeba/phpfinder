@@ -79,18 +79,11 @@ final class ConfigurationTest extends TestCase
 
 	public function testMakeCoercesValuesToBool(): void
 	{
-		$this->expectKnownBug(
-			'Configuration::make() assigns $configuration->{$key} from inside the class, which writes the private '
-			. 'property directly and bypasses __set(), so the value is stored as given instead of being coerced to '
-			. 'bool like every other way of setting it (the @property tags and __get() promise bool).',
-			function () {
-				$config = Configuration::make(['useWhich' => 'yes', 'useWhereIs' => 1, 'validateCli' => 0]);
+		$config = Configuration::make(['useWhich' => 'yes', 'useWhereIs' => 1, 'validateCli' => 0]);
 
-				$this->assertSame(true, $config->useWhich);
-				$this->assertSame(true, $config->useWhereIs);
-				$this->assertSame(false, $config->validateCli);
-			}
-		);
+		$this->assertSame(true, $config->useWhich);
+		$this->assertSame(true, $config->useWhereIs);
+		$this->assertSame(false, $config->validateCli);
 	}
 
 	public function testFluentSettersSetEveryPropertyAndChain(): void
@@ -220,16 +213,11 @@ final class ConfigurationTest extends TestCase
 
 	public function testIssetReportsTheDocumentedProperties(): void
 	{
-		$this->expectKnownBug(
-			'Configuration has __get() but no __isset(), so isset($config->useWhich) is always FALSE and '
-			. 'empty($config->useWhich) always TRUE for the documented @property members, whatever their value.',
-			function () {
-				$config = new Configuration();
+		$config = new Configuration();
 
-				$this->assertTrue(isset($config->useWhich), 'isset($config->useWhich)');
-				$this->assertFalse(empty($config->useWhich), 'empty($config->useWhich) when it is TRUE');
-			}
-		);
+		$this->assertTrue(isset($config->useWhich), 'isset($config->useWhich)');
+		$this->assertFalse(empty($config->useWhich), 'empty($config->useWhich) when it is TRUE');
+		$this->assertFalse(isset($config->noSuchThing), 'isset() of an unknown property');
 	}
 
 	public function testTheClassIsFinal(): void
