@@ -92,7 +92,11 @@ final class ExecFallbackTest extends AbstractWindowsTestCase
 
 	public function testBinaryWhichCannotRunPrintsNothing(): void
 	{
+		// cmd.exe runs these: a program which stops at once, a php.exe which is not a program (never run), and a PHP
+		// which prints a warning on STDERR (StderrTest).
+		$this->assertAnalyzed(self::NO_DLL_EXE, null);
 		$this->assertAnalyzed(self::BROKEN_EXE, null);
+		$this->assertAnalyzed(self::STDERR_EXE, '8.4.');
 	}
 
 	private function assertAnalyzed(string $binary, ?string $versionPrefix): void

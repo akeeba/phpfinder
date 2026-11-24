@@ -24,6 +24,10 @@
  * VM's snapshot restores them anyway).
  * It answers {"status": 0, "stdout": "", "stderr": ""}, or a status of 1 and the error.
  *
+ * {"plant": {"C:\\PHP89\\php.exe": "<base64 of its bytes>", …}} writes files for a test, wherever a search strategy
+ * looks, creating their directories; {"unplant": true} removes them all, and those directories. It never overwrites a
+ * file it did not write. The same answer as above.
+ *
  * For a PHP version, the relay runs C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request> in a new process, without
  * a shell (so nothing is re-quoted on the way), in the empty directory C:\pf\work (`where` looks in the current
  * directory first). For "iis", it requests http://localhost/pf-probe.php?r=<request>: IIS runs the probe.
@@ -53,6 +57,14 @@ while (($line = fgets($stdin)) !== false)
 	if (is_array($message) && isset($message['hidden']))
 	{
 		fwrite($stdout, json_encode(hideTools((array) $message['hidden'])) . "\n");
+		fflush($stdout);
+
+		continue;
+	}
+
+	if (is_array($message) && (isset($message['plant']) || isset($message['unplant'])))
+	{
+		fwrite($stdout, json_encode(plantFiles((array) ($message['plant'] ?? []), !empty($message['unplant']))) . "\n");
 		fflush($stdout);
 
 		continue;
@@ -104,6 +116,81 @@ while (($line = fgets($stdin)) !== false)
 
 	fwrite($stdout, json_encode($answer) . "\n");
 	fflush($stdout);
+}
+
+/**
+ * Write files for a test, anywhere (as Administrator), creating their directories; or remove every file this relay
+ * wrote, and the directories it created for them. A file which exists, and which the relay did not write, is never
+ * overwritten: the fixtures stay as provision.ps1 made them.
+ *
+ * @param   string[]  $files    Path => base64 of its bytes
+ * @param   bool      $unplant  Remove everything planted so far instead
+ */
+function plantFiles(array $files, bool $unplant): array
+{
+	static $planted = [], $createdDirs = [];
+
+	if ($unplant)
+	{
+		foreach (array_keys($planted) as $path)
+		{
+			@unlink($path);
+		}
+
+		// Deepest first.
+		usort($createdDirs, function ($a, $b) {
+			return strlen($b) - strlen($a);
+		});
+
+		foreach ($createdDirs as $dir)
+		{
+			@rmdir($dir);
+		}
+
+		clearstatcache();
+		$left = array_values(array_filter(array_merge(array_keys($planted), $createdDirs), 'file_exists'));
+		[$planted, $createdDirs] = [[], []];
+
+		return $left === []
+			? ['status' => 0, 'stdout' => '', 'stderr' => '']
+			: ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not remove ' . implode(', ', $left)];
+	}
+
+	foreach ($files as $path => $base64)
+	{
+		clearstatcache();
+
+		if (file_exists($path) && !isset($planted[$path]))
+		{
+			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: will not overwrite ' . $path];
+		}
+
+		$missing = [];
+
+		for ($dir = dirname($path); !is_dir($dir) && dirname($dir) !== $dir; $dir = dirname($dir))
+		{
+			$missing[] = $dir;
+		}
+
+		foreach (array_reverse($missing) as $dir)
+		{
+			if (!@mkdir($dir))
+			{
+				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not create ' . $dir];
+			}
+
+			$createdDirs[] = $dir;
+		}
+
+		if (@file_put_contents($path, base64_decode((string) $base64)) === false)
+		{
+			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not write ' . $path];
+		}
+
+		$planted[$path] = true;
+	}
+
+	return ['status' => 0, 'stdout' => '', 'stderr' => ''];
 }
 
 /**

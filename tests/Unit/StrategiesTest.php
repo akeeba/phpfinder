@@ -274,6 +274,90 @@ final class StrategiesTest extends TestCase
 		}
 	}
 
+	public function testOnlyWindowsProgramsAreReturnedOrRunOnWindows(): void
+	{
+		// A php.exe which is not a program (a text file, an empty file), wherever a Windows search strategy looks. Here
+		// each is a shell script which the host could run, and which would report PHP 5.9.9 and leave a line in a log
+		// (fakeNonProgramPhp()): a finder simulating Windows must neither return nor run it.
+		$notPrograms = [
+			'where'         => $this->fakeNonProgramPhp('w/path/php.exe', '5.9.9'),
+			'common'        => $this->fakeNonProgramPhp('C:\\PHP59/php.exe', '5.9.9'),
+			'common depth'  => $this->fakeNonProgramPhp('C:\\PHP/sub/php.exe', '5.9.9'),
+			'program files' => $this->fakeNonProgramPhp('C:\\Program Files\\PHP59/php.exe', '5.9.9'),
+			'wamp'          => $this->fakeNonProgramPhp('C:\\wamp64\\bin\\php/php5.9.9/php.exe', '5.9.9'),
+			'mamp'          => $this->fakeNonProgramPhp('C:\\MAMP\\bin\\php/php5.9.9/php.exe', '5.9.9'),
+			'xampp'         => $this->fakeNonProgramPhp('C:\\xampp\\php\\php.exe', '5.9.9'),
+			'plesk'         => $this->fakeNonProgramPhp('plesk\\Additional\\PleskPHP59\\php.exe', '5.9.9'),
+			'plesk legacy'  => $this->fakeNonProgramPhp('plesk\\Additional\\PHP59\\php.exe', '5.9.9'),
+		];
+		// A real one, found after all of the above.
+		$program = $this->fakePhp('C:\\wamp64\\bin\\php/php5.9.1/php.exe', '5.9.1');
+		// Programs, named otherwise than .exe.
+		$otherNames = [$this->fakePhp('w/path/php.com', '5.9.8'), $this->fakePhp('w/path/php.bat', '5.9.7')];
+
+		$this->fakeExecutable(
+			self::windowsTool('where'),
+			"case \"\$1\" in\n"
+			. "  '\$PATH:php') printf '%s\\r\\n' '" . $notPrograms['where'] . "' ;;\n"
+			. "  *) echo 'INFO: Could not find files for the given pattern(s).' >&2; exit 1 ;;\n"
+			. "esac\n"
+		);
+
+		$savedPleskDir = getenv('PLESK_DIR');
+		putenv('PLESK_DIR=' . $this->root() . '/plesk\\');
+
+		try
+		{
+			$finder = $this->simulateOs(
+				$this->finder(['useWhere' => true, 'usePHPCommonWinDirsSearch' => true, 'softwareSpecific' => true]),
+				'Windows'
+			);
+			$this->setPrivate($finder, 'windowsDrives', [$this->fakeWindowsDrive('C')]);
+
+			[$results, $diagnostics] = $this->withDiagnostics(function () use ($finder, $notPrograms, $otherNames) {
+				$analyzed = [];
+
+				// What runs a binary: given any path at all, not only those getPossiblePaths() returns.
+				foreach (array_merge($notPrograms, $otherNames) as $path)
+				{
+					$analyzed[$path] = $this->callPrivate($finder, 'analyzePHPVersion', [$path])->version;
+				}
+
+				return [
+					'possible' => array_values($finder->getPossiblePaths('5.9')),
+					'best'     => $finder->getBestPathMeta('5.9'),
+					'analyzed' => $analyzed,
+				];
+			});
+		}
+		finally
+		{
+			putenv($savedPleskDir === false ? 'PLESK_DIR' : ('PLESK_DIR=' . $savedPleskDir));
+		}
+
+		$this->assertSame([], $diagnostics);
+
+		foreach ($notPrograms as $strategy => $path)
+		{
+			$this->assertNotContains($path, $results['possible'], 'Not a program, returned (' . $strategy . ')');
+		}
+
+		$this->assertContains($program, $results['possible']);
+		$this->assertSame($program, $results['best']->path ?? null);
+		$this->assertSame(
+			array_fill_keys(array_merge(array_values($notPrograms), $otherNames), null),
+			$results['analyzed']
+		);
+		$this->assertSame([], $this->notProgramRuns(), 'Files which are not Windows programs ran');
+
+		// The control: on a simulated Linux, the same scripts are programs, and they run.
+		$this->assertSame(
+			'5.9.9',
+			$this->callPrivate($this->simulateOs($this->finder(), 'Linux'), 'analyzePHPVersion', [$notPrograms['where']])->version
+		);
+		$this->assertSame([$notPrograms['where']], $this->notProgramRuns());
+	}
+
 	public function testWindowsDrivesFromWmic(): void
 	{
 		// `wmic logicaldisk get name`, as it prints through a pipe: a header, each name padded to the column

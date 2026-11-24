@@ -209,7 +209,67 @@ trait FakeSystem
 			$this->setPrivate($finder, 'windowsDirectory', $this->fakeRoot . '/Windows');
 		}
 
+		// On Windows a PHP binary must be a PE image. The fakes are shell scripts: those fakeExecutable() made count as
+		// programs, unless made as fakeNonProgramPhp(); any other file gets the library's real check (isPeImage()).
+		if (strtoupper($osFamily) === 'WINDOWS' && property_exists($finder, 'peImageCheck'))
+		{
+			$this->setPrivate(
+				$finder,
+				'peImageCheck',
+				function (string $path) use ($finder): bool {
+					return $this->isFakeProgram($path) || $this->callPrivate($finder, 'isPeImage', [$path]);
+				}
+			);
+		}
+
 		return $finder;
+	}
+
+	/**
+	 * Create a fake PHP binary which stands for a file that is NOT a Windows program (a text file, an empty file named
+	 * php.exe): a shell script which the host can run, and which would report a PHP version, but which a finder
+	 * simulating Windows must never accept nor run. Each time it runs it appends a line to ran-not-programs.log under
+	 * the fake root (see notProgramRuns()).
+	 *
+	 * @param   string  $relPath  Path relative to the fake root
+	 * @param   string  $version  The version it would report
+	 *
+	 * @return  string  The absolute path
+	 */
+	protected function fakeNonProgramPhp(string $relPath, string $version): string
+	{
+		return $this->fakeExecutable(
+			$relPath,
+			self::$notAProgram . "\n"
+			. "echo \"\$0\" >> '" . $this->fakeRoot . "/ran-not-programs.log'\n"
+			. "echo 'PHP " . $version . " (cli) (built: Jan  1 2026 00:00:00) (NTS)'\n"
+		);
+	}
+
+	/**
+	 * The fakes made by fakeNonProgramPhp() which ran, one line each.
+	 *
+	 * @return  string[]
+	 */
+	protected function notProgramRuns(): array
+	{
+		$log = $this->fakeRoot . '/ran-not-programs.log';
+
+		return is_file($log) ? array_values(array_filter(array_map('trim', file($log)))) : [];
+	}
+
+	/** The line which marks a fake as not being a Windows program (fakeNonProgramPhp()). */
+	private static $notAProgram = '# phpfinder-unit: not a Windows program';
+
+	/**
+	 * Whether a file stands for a Windows program in a simulated Windows: a shell script fakeExecutable() made, other
+	 * than those fakeNonProgramPhp() made.
+	 */
+	private function isFakeProgram(string $path): bool
+	{
+		$head = (string) @file_get_contents($path, false, null, 0, 256);
+
+		return strpos($head, "#!/bin/sh\n") === 0 && strpos($head, self::$notAProgram) === false;
 	}
 
 	/**

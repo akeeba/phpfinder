@@ -57,6 +57,18 @@ final class PHPFinder
 	private $windowsDrives = null;
 
 	/**
+	 * What decides, instead of isPeImage(), whether a file is a Windows program. NULL (always, outside the tests) uses
+	 * isPeImage().
+	 *
+	 * Private, and never set by the library itself: the unit tests set it through a bound closure when they simulate
+	 * Windows on another OS, where the PHP binaries they run are shell scripts, not PE images.
+	 *
+	 * @var    callable|null
+	 * @since  1.0.2
+	 */
+	private $peImageCheck = null;
+
+	/**
 	 * Returns a new object instance.
 	 *
 	 * @param   Configuration|null  $configuration  The configuration to use.
@@ -166,7 +178,7 @@ final class PHPFinder
 	 * default configuration options to guarantee the accuracy of the result.
 	 *
 	 * On Windows, only .exe files which are Windows programs are returned: PHP's CLI binary is php.exe (see
-	 * isWindowsProgramFile()).
+	 * isCandidateFile()).
 	 *
 	 * @param   string|null  $version  The version to look for.
 	 *
@@ -197,14 +209,10 @@ final class PHPFinder
 		$ret = array_merge($ret, $this->pathsHomeBrew($version));
 		$ret = array_merge($ret, $this->pathsWAMPServer($version));
 
-		$isWindows = $this->getOsFamily() === 'WINDOWS';
-
 		return array_filter(
 			array_unique($ret),
-			function ($filePath) use ($isWindows) {
-				return !empty($filePath)
-				       && (!$isWindows || $this->isWindowsProgramFile($filePath))
-				       && @is_file($filePath);
+			function ($filePath) {
+				return $this->isCandidateFile((string) $filePath);
 			}
 		);
 	}
@@ -1265,7 +1273,8 @@ final class PHPFinder
 			'cli'     => false,
 		];
 
-		$output = @file_exists($path) && $this->isExecutable($path) ? $this->runVersionCommand($path) : null;
+		// The only place a PHP binary is run: whatever the path came from, it is the same check getPossiblePaths() makes.
+		$output = $this->isCandidateFile($path) && $this->isExecutable($path) ? $this->runVersionCommand($path) : null;
 
 		if ($output === null)
 		{
@@ -1538,6 +1547,29 @@ final class PHPFinder
 	}
 
 	/**
+	 * Whether a path is a file which could be a PHP CLI binary: the one check every candidate passes, both before
+	 * getPossiblePaths() returns it and before analyzePHPVersion() runs it, whichever search strategy (or caller) it
+	 * came from.
+	 *
+	 * Everywhere, it must be a file. On Windows, it must also be a Windows program file named .exe (see
+	 * isWindowsProgramFile()).
+	 *
+	 * @param   string  $path  The path
+	 *
+	 * @return  bool
+	 * @since   1.0.2
+	 */
+	private function isCandidateFile(string $path): bool
+	{
+		if ($path === '' || !@is_file($path))
+		{
+			return false;
+		}
+
+		return $this->getOsFamily() !== 'WINDOWS' || $this->isWindowsProgramFile($path);
+	}
+
+	/**
 	 * Whether a path, on Windows, names a program file PHP's CLI binary could be: its name ends in .exe, in any case,
 	 * AND the file is a Windows program (a PE image, see isPeImage()). Both must hold.
 	 *
@@ -1545,12 +1577,12 @@ final class PHPFinder
 	 * an extensionless php (e.g. a shell script for Cygwin or Git Bash). None of them is PHP's CLI binary, and an
 	 * application which runs the path it is given would run them. Windows runs a .bat or .cmd file through cmd.exe (the
 	 * one %ComSpec% names), whose quoting rules differ from a program's and which expands %NAME% in its command line.
-	 * A program under another name (php.com, php) is refused too: what runs a path decides by its extension how to run
-	 * it, and only .exe is what PHP's CLI binary is called. A php.exe which is not a program (a text file, an empty
-	 * file) is refused before anything tries to run it.
+	 * A program under another name (php.com, php.bat, php) is refused too: what runs a path decides by its extension
+	 * how to run it, and only .exe is what PHP's CLI binary is called.
 	 *
-	 * The header is only read where PHP really runs on Windows: the tests simulate Windows on other systems, with
-	 * shell scripts standing in for PHP binaries (as for getNullDevice()).
+	 * A php.exe which is not a program (a text file, an empty file, a bare MS-DOS header) is refused before anything
+	 * tries to run it. PHP's is_executable() is not enough: on Windows it asks GetBinaryTypeW(), which is TRUE for a
+	 * text file named php.exe, and for a file with nothing but an MZ header (Windows Server 2022, PHP 7.2 to 8.6).
 	 *
 	 * @param   string  $path  The path
 	 *
@@ -1564,7 +1596,7 @@ final class PHPFinder
 			return false;
 		}
 
-		return strtoupper(PHP_OS_FAMILY) !== 'WINDOWS' || $this->isPeImage($path);
+		return $this->peImageCheck === null ? $this->isPeImage($path) : (bool) call_user_func($this->peImageCheck, $path);
 	}
 
 	/**

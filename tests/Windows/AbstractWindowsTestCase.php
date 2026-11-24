@@ -63,8 +63,13 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const ODD_DEFINED_VAR_85   = self::ODD_DEFINED_VAR_DIR . '\\php.exe';
 	protected const ODD_NO_PERCENT_85    = 'C:\\pf\\odd & (x) !bang ^caret\\php.exe';
 	protected const ODD_EXPANDED_83      = 'C:\\pf\\odd Windows_NT\\php.exe';
+	protected const PATH_EXT_COM         = 'C:\\pf\\path-ext\\php.com';
 	protected const BROKEN_EXE           = 'C:\\pf\\fake\\broken\\php.exe';
 	protected const EMPTY_EXE            = 'C:\\pf\\fake\\zero\\php.exe';
+	/** PHP 8.4's php.exe without its DLLs: a program which starts, and stops at once (STATUS_DLL_NOT_FOUND). */
+	protected const NO_DLL_EXE           = 'C:\\pf\\fake\\nodll\\php.exe';
+	/** PHP 8.4, whose php.ini makes it print a startup warning on STDERR before its banner. */
+	protected const STDERR_EXE           = 'C:\\pf\\fake\\stderr\\php.exe';
 
 	// Windows directories with stand-ins for misbehaving tools (see guest/provision.ps1), for $windowsDirectory.
 	protected const WIN_WMIC_NONE    = 'C:\\pf\\fakewin\\wmic-none';
@@ -196,6 +201,35 @@ abstract class AbstractWindowsTestCase extends TestCase
 		if ($answer['status'] !== 0)
 		{
 			self::fail('Could not hide or restore ' . implode(', ', array_keys($hidden)) . ': ' . $answer['stderr']);
+		}
+	}
+
+	/**
+	 * Write files in the guest for a test, e.g. ['C:\\PHP89\\php.exe' => 'not a program'], creating their directories.
+	 * A test which plants files calls unplant() in tearDown(). Never overwrites a fixture.
+	 *
+	 * @param   string[]  $files  Path => bytes
+	 */
+	protected static function plant(array $files): void
+	{
+		$answer = self::relayRequest(['plant' => (object) array_map('base64_encode', $files)]);
+
+		if ($answer['status'] !== 0)
+		{
+			self::fail('Could not plant ' . implode(', ', array_keys($files)) . ': ' . $answer['stderr']);
+		}
+	}
+
+	/**
+	 * Remove every file plant() wrote, and the directories it made for them.
+	 */
+	protected static function unplant(): void
+	{
+		$answer = self::relayRequest(['unplant' => true]);
+
+		if ($answer['status'] !== 0)
+		{
+			self::fail('Could not remove the planted files: ' . $answer['stderr']);
 		}
 	}
 

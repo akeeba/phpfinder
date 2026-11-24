@@ -88,8 +88,18 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
 | `C:\pf\odd Windows_NT\php.exe` | **8.3** | what `C:\pf\odd %OS%\php.exe` becomes when `cmd.exe` expands `%OS%`: another binary |
-| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate; `StderrTest` and `ExecFallbackTest` hand it to `analyzePHPVersion()` directly |
+| `C:\pf\pe-names\php.bat`, `php.cmd`, `php.com` | 8.1 | real programs under the names of scripts, and no `php.exe`: never returned or run (`NonProgramsTest`) |
+| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate, nor run when `analyzePHPVersion()` is given it directly |
 | `C:\pf\fake\zero\php.exe` | none | an empty `php.exe`: never a candidate |
+| `C:\pf\fake\nodll\php.exe` | 8.4, alone | a program which stops at once (without its DLLs: `STATUS_DLL_NOT_FOUND`): `StderrTest`, `ExecFallbackTest` |
+| `C:\pf\fake\stderr\php.exe` | 8.4 | prints a startup warning on STDERR (its `php.ini` loads an extension which does not exist): `StderrTest`, `ExecFallbackTest` |
+
+`NonProgramsTest` also writes a `php.exe` which is not a program (a text file, an empty file, and a bare MS-DOS
+header) in every location a search strategy looks in, for PHP 8.9, for the duration of a test: the relay's `plant`
+request, which never overwrites a fixture. They go in `C:\pf\not-a-program` (in the `PATH`), `C:\PHP89`,
+`C:\PHP\not-a-program`, `C:\Program Files\PHP\not-a-program`, `C:\Program Files (x86)\PHP8.9`, `D:\PHP89`,
+`C:\wamp64\bin\php\php8.9.0`, `C:\MAMP\bin\php\php8.9.0`, `D:\xampp\php` (XAMPP has one path per drive, and `C:`'s
+holds PHP 7.2) and Plesk's `Additional\PleskPHP89` and `Additional\PHP89`.
 
 Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian
 editions alike) lists `%plesk_dir%Additional\PHP<XY>\php.exe` for PHP 5.3 to 7.0; Plesk Obsidian installs

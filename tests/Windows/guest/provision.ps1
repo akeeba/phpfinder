@@ -147,6 +147,11 @@ foreach ($wrapper in 'php.bat', 'php.cmd') {
     if ($banner -notlike 'PHP 8.1.9* (cli)*') { throw "fixture $pf\path-ext\$wrapper does not run: $banner" }
     "fixture $pf\path-ext\${wrapper}: $banner"
 }
+# Real programs under the names of scripts: PHP 8.1's php.exe copied as php.bat, php.cmd and php.com (with its DLLs), and
+# no php.exe. `where` lists all three; none may ever be returned or run.
+New-Fixture '8.1' "$pf\pe-names"
+foreach ($name in 'php.bat', 'php.cmd', 'php.com') { Copy-Item "$pf\pe-names\php.exe" "$pf\pe-names\$name" }
+Remove-Item "$pf\pe-names\php.exe"
 # Directory names with the characters cmd.exe treats specially. %PF_UNDEFINED% names no environment variable; %OS% does.
 New-Fixture '8.5' "$pf\odd %PF_UNDEFINED% & (x) !bang ^caret"
 New-Fixture '8.5' "$pf\odd %OS%"
@@ -160,6 +165,20 @@ Set-Content "$pf\fake\broken\php.exe" 'This is not a program.' -Encoding ascii
 # And an empty one.
 New-Item -ItemType Directory -Force "$pf\fake\zero" | Out-Null
 [IO.File]::WriteAllBytes("$pf\fake\zero\php.exe", [byte[]]@())
+# A program which starts and stops at once: PHP 8.4's php.exe without its DLLs (exit code 0xC0000135,
+# STATUS_DLL_NOT_FOUND, nothing printed).
+New-Item -ItemType Directory -Force "$pf\fake\nodll" | Out-Null
+Copy-Item "$($runners['8.4'])\php.exe" "$pf\fake\nodll\php.exe"
+& "$env:windir\System32\cmd.exe" /d /c "`"$pf\fake\nodll\php.exe`" -n -v >NUL 2>&1"
+if ($LASTEXITCODE -ne -1073741515) { throw "$pf\fake\nodll\php.exe exit code $LASTEXITCODE, not STATUS_DLL_NOT_FOUND" }
+# A PHP which prints on STDERR: PHP 8.4, whose php.ini (next to it, which PHP reads without -n) asks for an extension
+# which does not exist, and shows the startup warning on STDERR.
+New-Fixture '8.4' "$pf\fake\stderr"
+Remove-Item "$pf\fake\stderr\php.ini*"
+[IO.File]::WriteAllText("$pf\fake\stderr\php.ini", "display_errors=stderr`r`ndisplay_startup_errors=1`r`nextension=pf_no_such_extension`r`n", [Text.Encoding]::ASCII)
+$warning = (& "$env:windir\System32\cmd.exe" /d /c "`"$pf\fake\stderr\php.exe`" -v 2>&1 >NUL" | Select-Object -First 1) -as [string]
+if ($warning -notlike '*Unable to load dynamic library*') { throw "$pf\fake\stderr\php.exe prints no warning on STDERR: $warning" }
+"fixture $pf\fake\stderr\php.exe: STDERR $warning"
 
 # A stand-in for Windows' tools, compiled here (.NET Framework's C# compiler, through Add-Type). Copied under a tool's
 # name (where.exe, WMIC.exe, …), it appends its command line to <name>.ran next to itself, so a test can tell that it
