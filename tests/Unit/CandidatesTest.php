@@ -342,20 +342,15 @@ final class CandidatesTest extends TestCase
 			$this->callPrivate($finder, 'getWindowsProgramFilesPHPPaths', ['C:\\Program Files\\', null])
 		);
 
-		$this->expectKnownBug(
-			'getWindowsProgramFilesPHPPaths() calls $this->getMajorMinor() WITHOUT the $version, so $minor is '
-			. 'always NULL and the version-specific directories (PHP84, PHP8.4, PHP8.4.1) are never added.',
-			function () use ($finder) {
-				$this->assertSame(
-					[
-						'C:\\Program Files\\PHP'      => 1,
-						'C:\\Program Files\\PHP84'    => 0,
-						'C:\\Program Files\\PHP8.4'   => 0,
-						'C:\\Program Files\\PHP8.4.1' => 0,
-					],
-					$this->callPrivate($finder, 'getWindowsProgramFilesPHPPaths', ['C:\\Program Files\\', '8.4.1'])
-				);
-			}
+		// Used to call getMajorMinor() WITHOUT the version, so the version-specific directories were never added.
+		$this->assertSame(
+			[
+				'C:\\Program Files\\PHP'      => 1,
+				'C:\\Program Files\\PHP84'    => 0,
+				'C:\\Program Files\\PHP8.4'   => 0,
+				'C:\\Program Files\\PHP8.4.1' => 0,
+			],
+			$this->callPrivate($finder, 'getWindowsProgramFilesPHPPaths', ['C:\\Program Files\\', '8.4.1'])
 		);
 	}
 

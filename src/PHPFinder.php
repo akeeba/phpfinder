@@ -1196,7 +1196,7 @@ final class PHPFinder
 			return $possiblePaths;
 		}
 
-		[$major, $minor] = $this->getMajorMinor();
+		[$major, $minor] = $this->getMajorMinor($version);
 
 		$possiblePaths[rtrim($pathPrefix, '\\') . '\\PHP'] = 1;
 
