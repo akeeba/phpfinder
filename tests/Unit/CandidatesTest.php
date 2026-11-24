@@ -462,6 +462,41 @@ final class CandidatesTest extends TestCase
 		$this->assertSame([], $diagnostics);
 	}
 
+	public function testWampServerIsOnlySearchedOnWindowsWithSoftwareSpecific(): void
+	{
+		$php = $this->fakePhp('C:\\wamp\\bin\\php/php5.9.1/php.exe', '5.9.1');
+
+		// A wmic which logs its calls, and lists the fake drive.
+		$this->fakeExecutable(
+			'bin/wmic',
+			"echo \"\$*\" >> '" . $this->root() . "/wmic.log'\n"
+			. "printf 'Name\\n%s\\n' '" . $this->fakeWindowsDrive('C') . "'\n"
+		);
+
+		$wamp = function (string $osFamily, bool $softwareSpecific): array {
+			return $this->callPrivate(
+				$this->simulateOs($this->finder(['softwareSpecific' => $softwareSpecific]), $osFamily),
+				'pathsWAMPServer',
+				['5.9']
+			);
+		};
+
+		$this->assertSame([$php], $wamp('Windows', true));
+
+		// Used to be guarded by `!softwareSpecific && !isWindows`: on Windows it ran with softwareSpecific off,
+		// and everywhere else it looked the Windows drives up (here, finding the fake one) when it was on.
+		@unlink($this->root() . '/wmic.log');
+
+		foreach ([['Windows', false], ['Darwin', true], ['Linux', true], ['Linux', false]] as $case)
+		{
+			[$osFamily, $softwareSpecific] = $case;
+
+			$this->assertSame([], $wamp($osFamily, $softwareSpecific), "$osFamily, softwareSpecific " . var_export($softwareSpecific, true));
+		}
+
+		$this->assertFalse(is_file($this->root() . '/wmic.log'), 'wmic was run');
+	}
+
 	public function testRecursivePathScannerHonoursTheDepth(): void
 	{
 		$zero = $this->fakePhp('scan/php', '5.9.1');

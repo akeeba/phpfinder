@@ -835,7 +835,7 @@ final class PHPFinder
 	 */
 	private function pathsWAMPServer(?string $version): array
 	{
-		if (!$this->configuration->softwareSpecific && $this->getOsFamily() != 'WINDOWS')
+		if (!$this->configuration->softwareSpecific || $this->getOsFamily() !== 'WINDOWS')
 		{
 			return [];
 		}
