@@ -22,5 +22,42 @@
 		"psr-4": {
 			"Akeeba\\PHPFinder\\": "src"
 		}
+	},
+	"config": {
+		"platform": {
+			"php": "7.2.999"
+		}
+	},
+	"scripts": {
+		"test": [
+			"@test:unit",
+			"@test:integration"
+		],
+		"test:unit": [
+			"phpunit -c phpunit.xml"
+		],
+		"test:integration": [
+			"Composer\\Config::disableProcessTimeout",
+			"tests/Integration/docker/run.sh"
+		]
+	},
+	"scripts-descriptions": {
+		"test": "Run the unit suite, then the Docker integration suite",
+		"test:unit": "Run the in-process unit suite against fake PHP binaries (no Docker)",
+		"test:integration": "Run the integration suite against real PHP CLIs in a throwaway Docker container (tests/Integration/docker/run.sh)"
+	},
+	"archive": {
+		"exclude": [
+			"/tests",
+			"/phpunit.xml",
+			"/phpunit.xml.dist",
+			"/phpunit-integration.xml",
+			"/build.xml",
+			"/.phpunit.cache",
+			"/.phpunit.result.cache",
+			"/AGENTS.md",
+			"/.claude",
+			"/.idea"
+		]
 	}
 }

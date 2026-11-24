@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	PHPFinder has nothing to package (Packagist installs it from the Git tag), so this build file only
+	exists for `phing test`. It does not import ../buildfiles/phing/common.xml: that brings in the
+	extension packaging machinery and its build.properties, which this library neither has nor needs.
+-->
+<project name="phpfinder" default="test" basedir=".">
+	<!-- Delegates to Composer so that "phing test" and "composer test" can never drift apart. -->
+	<target name="test" description="Run the unit and integration test suites (delegates to composer test)">
+		<exec executable="composer" dir="${project.basedir}" checkreturn="true" passthru="true">
+			<arg value="test"/>
+		</exec>
+	</target>
+</project>

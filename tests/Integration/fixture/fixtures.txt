@@ -1,0 +1,21 @@
+# The extra PHP binaries provision.sh installs in the `php` container, one per line:
+#
+#   <path>  <version of the real PHP it runs>  <php | php-fpm>  <what it is for>
+#
+# Each is a tiny wrapper running a REAL PHP binary harvested from akeeba-e2e/php:<version> (see
+# docker/harvest.sh), so `<path> -v` prints that PHP's own version banner. The versions here must be
+# listed in DONOR_VERSIONS (docker/matrix.env) and must never be the runner's version: the runner's
+# /usr/local/bin/php comes first in PHPFinder's candidate order and would shadow them.
+#
+# The integration tests (AbstractIntegrationTestCase) refer to these paths; keep both in step.
+
+/opt/pf-which/bin/php82                     8.2  php      which: reachable only through `which`, when /opt/pf-which/bin is in the PATH
+/usr/local/games/php82                      8.2  php      whereis: in whereis' search list, but neither in the PATH nor a fixed UNIX path
+/usr/bin/php8.2                             8.2  php      the Debian/Ubuntu dotted name; only the Plesk candidates list it
+/opt/bin/php83                              8.3  php      a fixed UNIX path (/opt/bin is not in the PATH, so `which` cannot find it)
+/usr/bin/php83                              8.3  php-fpm  a non-CLI SAPI with a CLI name, ahead of /opt/bin/php83 in the candidate order
+/opt/cloudlinux/alt-php83/root/usr/bin/php  8.3  php      CloudLinux alt-php
+/opt/bin/php84                              8.2  php      MISLABELLED: named for 8.4 but really 8.2, ahead of /usr/local/bin/php84-cli
+/usr/local/bin/php84-cli                    8.4  php      an extended binary name
+/opt/cpanel/ea-php84/root/usr/bin/php       8.4  php      cPanel EasyApache
+/opt/pf-ua/php84                            8.4  php      registered with update-alternatives in the "php" group

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Integration suite: PHPUnit on the host, PHPFinder running inside a throwaway Docker container which
+	holds several real PHP CLIs. It needs a provisioned stack, so run it through
+
+		tests/Integration/docker/run.sh        (or: composer test:integration)
+
+	See tests/Integration/README.md. Limited to what PHPUnit 8.5 knows, for the same reason as phpunit.xml.
+-->
+<phpunit bootstrap="tests/Integration/bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         failOnWarning="true"
+         failOnRisky="true"
+>
+	<php>
+		<ini name="error_reporting" value="-1"/>
+	</php>
+	<testsuites>
+		<testsuite name="integration">
+			<directory>tests/Integration/Tests</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

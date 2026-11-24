@@ -1,0 +1,65 @@
+# Throwaway stack for the PHPFinder integration suite.
+#
+# Do not run this by hand. Use ./run.sh, which scrubs, provisions, tests and tears down in one shot.
+# This file only describes the services.
+#
+# php      The container PHPFinder runs in, on the shared akeeba-e2e/php:<PHP_VERSION> image. Its own PHP
+#          (/usr/local/bin/php) is the "runner": it executes the library through fixture/probe.php, so
+#          the library itself is exercised on that PHP version. It also holds several MORE real PHP
+#          CLIs, at the paths each search strategy looks in, which provision.sh puts there.
+# harvest  A one-shot service, run once per extra PHP version with DONOR_VERSION set. It copies that
+#          image's real php / php-fpm binaries, the shared libraries they link against and their own
+#          dynamic loader into the `phpbin` volume. Running them through their own loader makes them
+#          independent of the runner image's Debian release.
+#
+# No ports are published: the host-side PHPUnit suite talks to the stack with `docker compose exec`.
+#
+# The images are the ones shared by every Akeeba E2E stack. They are built by
+# ../../../../buildfiles/docker/e2e/images.sh, which run.sh calls first, never by this file; hence
+# `pull_policy: never` and no `build:`.
+#
+# Every service and the volume carry the org.akeeba.e2e label, which is what the scheduled
+# buildfiles/docker/e2e/maintain.sh prunes by.
+
+name: phpfinder-integration
+
+x-e2e-labels: &e2e-labels
+  org.akeeba.e2e: "1"
+
+services:
+  php:
+    # run.sh always sets PHP_VERSION (from matrix.env or --php). The fallback only keeps `docker compose`
+    # commands which do not care about it (exec into a running stack, down) from refusing to parse.
+    image: "akeeba-e2e/php:${PHP_VERSION:-8.5}"
+    pull_policy: never
+    labels: *e2e-labels
+    # Not PHP-FPM: this container only needs to stay up while the suite execs into it. init reaps
+    # processes and makes `sleep` stop promptly on `docker compose down`.
+    init: true
+    entrypoint: []
+    command: ["sleep", "infinity"]
+    user: "0:0"
+    volumes:
+      - ../../../src:/app/src:ro
+      - ../fixture:/app/fixture:ro
+      - ./provision.sh:/app/provision.sh:ro
+      - phpbin:/opt/phpbin:ro
+
+  harvest:
+    image: "akeeba-e2e/php:${DONOR_VERSION:-unset}"
+    pull_policy: never
+    labels: *e2e-labels
+    profiles: ["harvest"]
+    entrypoint: ["/bin/sh", "/app/harvest.sh"]
+    user: "0:0"
+    volumes:
+      - ./harvest.sh:/app/harvest.sh:ro
+      - phpbin:/out
+
+volumes:
+  phpbin:
+    labels: *e2e-labels
+
+networks:
+  default:
+    labels: *e2e-labels

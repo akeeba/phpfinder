@@ -2,8 +2,38 @@
 
 ## Development Setup
 
-- **No build system, no tests, no CI/CD** — this is a focused 2-file library
+- A focused 2-file library (`src/`). No packaging step and no CI/CD: Packagist installs it from the Git tag.
 - **PHP requirement:** >=7.2.0 <8.7 — do not use features unavailable in PHP 7.2 (no typed properties, no union types, no named arguments, no match expressions, no arrow functions, no null-safe operator)
+
+## Tests
+
+Run everything with `composer test` (or `phing test`, which delegates to it): the unit suite, then the
+Docker integration suite. Both work on a fresh checkout, given a global `phpunit`.
+
+- **Unit** (`composer test:unit`, `phpunit.xml`, `tests/Unit/`): in-process, against fake PHP binaries
+  (shell scripts printing `PHP x.y.z (cli)`) and fake `whereis` / `update-alternatives` / `brew` in a
+  temporary directory put first in the `PATH`. Private candidate builders are called through a bound
+  closure. No Docker.
+- **Integration** (`composer test:integration` = `tests/Integration/docker/run.sh`,
+  `phpunit-integration.xml`, `tests/Integration/`): PHPUnit on the host drives the library inside a
+  throwaway container on the shared `akeeba-e2e/php` image, which holds several real PHP CLIs at the
+  paths each search strategy looks in. Needs Docker and `../buildfiles`. `run.sh --matrix` runs every
+  runner PHP version in `tests/Integration/docker/matrix.env`; `tests/Integration/README.md` explains the
+  matrix, the fixtures and the options.
+- PHPUnit is the **global** `phpunit`: never add `phpunit/phpunit` to `composer.json`. `config.platform.php` is
+  `7.2.999` (the minimum supported series, as in the other projects), and `composer.lock` is tracked but holds no
+  packages. The test code must run on every PHPUnit from 8.5 to 12: no data-provider annotations or attributes,
+  no assertions newer than 8.5 (e.g. no `assertFileDoesNotExist()`), and
+  `phpunit*.xml` limited to what PHPUnit 8.5 knows. Pass extra PHPUnit arguments after `--`, e.g.
+  `composer test:unit -- --filter Regression`.
+- `tests/bootstrap.php` honours `PHPFINDER_SRC`, to run the suite against another copy of `src/`, e.g.
+  one exported with `git show <rev>:src/…` to show a regression test failing on the code before a fix.
+- **Known bugs** in `src/` that are not fixed yet are tested through `expectKnownBug()`
+  (`tests/Support/KnownBug.php`): the assertions state the correct behaviour, the test is reported as
+  incomplete while the bug exists, and fails once it is fixed so the wrapper gets removed. Never assert
+  buggy behaviour as correct.
+- Nothing under `tests/`, nor `phpunit*.xml` or `build.xml`, may ship: they are `export-ignore` in
+  `.gitattributes` and in `composer.json`'s `archive.exclude`. Add any new development-only file to both.
 
 ## Code Conventions
 

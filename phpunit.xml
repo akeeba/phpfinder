@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Unit suite: in-process, against fake PHP binaries in a temporary directory. No Docker.
+
+	Run it with `composer test:unit`. The integration suite is phpunit-integration.xml.
+
+	composer.lock pins PHPUnit 8.5 (config.platform.php 7.2.0 in composer.json), the one PHPUnit line which
+	runs on every PHP composer.json allows, 7.2 to 8.6. This file is therefore schema-less and limited to
+	what PHPUnit 8.5 knows; it still works with PHPUnit 9 to 12. Incomplete tests (known bugs) only show
+	their diagnosis with `verbose`, which is why the Composer script passes it.
+-->
+<phpunit bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         failOnWarning="true"
+         failOnRisky="true"
+>
+	<php>
+		<ini name="error_reporting" value="-1"/>
+	</php>
+	<testsuites>
+		<testsuite name="unit">
+			<directory>tests/Unit</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
