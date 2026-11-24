@@ -1340,7 +1340,8 @@ final class PHPFinder
 	 * (Windows Server 2022, IIS 10, PHP 8.4). proc_open() calls CreateProcessW() while the FastCGI thread impersonates
 	 * the site's anonymous user (IUSR): the program runs as the application pool's identity, but its own access token
 	 * is owned by IUSR and only IUSR and SYSTEM may open it, so a program which opens its own token is denied. cmd.exe
-	 * does not; the programs it starts get a token their identity may open.
+	 * with that token still starts programs (not batch scripts: it runs none), and does not impersonate: the programs it
+	 * starts get a token their identity may open.
 	 *
 	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % or
 	 * a ! in it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder

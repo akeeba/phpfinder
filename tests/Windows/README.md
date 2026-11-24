@@ -201,7 +201,9 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
   pointed elsewhere too). So the same `php.bat` is PHP when given to `proc_open()` and garbage through `exec()`:
   PHPFinder takes neither (only `.exe` PE images, `NonProgramsTest`). Under IIS (`fastcgi.impersonate=1`), a `cmd.exe`
   which `proc_open()` started runs no batch script at all, a real one neither: exit code 1, nothing printed; `exec()`
-  runs the real one (checked by hand; that the token described below is why is a guess, not checked).
+  runs the real one. It is the token described below: with the site's anonymous user set to the application pool's
+  identity, which makes that token the pool's own, the same `cmd.exe` runs the real one (checked by hand; which call
+  fails inside `cmd.exe` is not traced).
 - `cmd.exe` looks a bare command name (`where`, `wmic`, …) up in the current directory before the `PATH`, and PHP's
   `exec()` starts `cmd.exe` itself by its bare name, which Windows also looks for in the current directory first: a
   `cmd.exe` in the working directory runs instead of Windows' own (`WorkingDirectoryTest`).
@@ -222,8 +224,9 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
   program which opens its own token is refused: `whoami`, PowerShell (`80070005` is `E_ACCESSDENIED`), and also `ping`
   (`Unable to contact IP driver. General failure.`) and `tasklist` (`Not enough memory resources…`); `where`, `fsutil`,
   `php.exe`, `cmd.exe`, `sort`, `findstr`, `certutil`, `hostname` and a .NET console program (the tools' stand-in) work.
-  `cmd.exe` started that way has the same token, but does not open it, and does not impersonate: the programs it starts
-  get a token owned by, and open to, the application pool's identity. With the anonymous user set to the application
+  `cmd.exe` started that way has the same token. It still starts programs (not batch scripts: it runs none, see above),
+  and it does not impersonate: the programs it starts get a token owned by, and open to, the application pool's
+  identity. With the anonymous user set to the application
   pool's identity (`fastcgi.impersonate=1` still), the direct child's token is the application pool's, and `whoami` and
   PowerShell work directly too, which singles the token's descriptor out as the cause. That those programs fail at the
   very call which opens their own token is inferred from the descriptor and their messages, not traced.
