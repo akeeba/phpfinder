@@ -508,8 +508,8 @@ final class PHPFinder
 		$possiblePaths = array_merge($possiblePaths, $this->getWindowsProgramFilesPHPPaths($programFiles, $version));
 		$possiblePaths = array_merge($possiblePaths, $this->getWindowsProgramFilesPHPPaths($programFilesx86, $version));
 
-		$possiblePaths = array_unique($possiblePaths);
-
+		// A directory => scan depth map: array_merge() already keeps one entry per directory. Scan the versioned
+		// directories (depth 0) first.
 		asort($possiblePaths);
 
 		$ret = [];

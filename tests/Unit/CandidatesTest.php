@@ -374,6 +374,38 @@ final class CandidatesTest extends TestCase
 		);
 	}
 
+	public function testCommonWindowsInstallPaths(): void
+	{
+		// Each is a directory the library builds as <drive>\<dir>, then a php.exe inside it. C:\PHP is also
+		// scanned one level down.
+		$expected = [];
+
+		foreach (['PHP', 'PHP84', 'PHP8.4', 'PHP8.4.1', 'Program Files\\PHP8.4', 'Program Files (x86)\\PHP84'] as $dir)
+		{
+			$expected[] = $this->fakePhp('C:\\' . $dir . '/php.exe', '5.9.1');
+		}
+
+		$expected[] = $this->fakePhp('C:\\PHP/8.4/php.exe', '5.9.1');
+
+		// Too deep: the versioned directories are not scanned below their top level.
+		$this->fakePhp('C:\\PHP84/sub/php.exe', '5.9.1');
+
+		$finder = $this->simulateOs($this->finder(['usePHPCommonWinDirsSearch' => true]), 'Windows');
+		$this->setPrivate($finder, 'windowsDrives', [$this->fakeWindowsDrive('C')]);
+
+		// Used to run array_unique() on the directory => scan depth map, which kept ONE directory per depth:
+		// C:\PHP (1) and C:\PHP84 (0), dropping every other versioned directory.
+		[$paths, $diagnostics] = $this->withDiagnostics(function () use ($finder) {
+			return $this->callPrivate($finder, 'pathsFromCommonWindowsInstallPaths', ['8.4.1']);
+		});
+
+		sort($paths);
+		sort($expected);
+
+		$this->assertSame($expected, $paths);
+		$this->assertSame([], $diagnostics);
+	}
+
 	public function testWampServerPaths(): void
 	{
 		// WAMPServer keeps each PHP version in its own directory: <drive>\wamp64\bin\php\php8.3.6\php.exe
