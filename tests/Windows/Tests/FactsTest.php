@@ -139,14 +139,56 @@ final class FactsTest extends AbstractWindowsTestCase
 		);
 	}
 
-	public function testIsExecutableIsOnlyTrueForAProgram(): void
+	public function testIsExecutableIsNotOnlyTrueForAProgram(): void
 	{
-		// PHP's is_executable() on Windows is TRUE for a program file, whatever its name (a copy of php.exe named php or
-		// php.com too, checked by hand on 7.2 to 8.6), and FALSE for a .bat or .cmd file, or an extensionless script.
+		// PHP's is_executable() on Windows asks GetBinaryTypeW(): TRUE for a program file, whatever its name (a copy of
+		// php.exe named php.com, php.bat, php.cmd or php), FALSE for a .bat or .cmd script, an extensionless script and an
+		// empty php.exe, but TRUE for a text file named php.exe too. Hence the PE header check (isWindowsProgramFile()).
 		$this->assertSame(
 			['php.exe' => true, 'php.bat' => false, 'php.cmd' => false, 'php.com' => true, 'php' => false],
 			$this->facts()['isExecutable']
 		);
+		$this->assertSame(
+			['text php.exe' => true, 'empty php.exe' => false, 'PE php.bat' => true, 'PE php.cmd' => true],
+			$this->facts()['isExecutableOther']
+		);
+	}
+
+	public function testHowAProgramNamedLikeAScriptRuns(): void
+	{
+		// PHP 8.1's php.exe copied as php.bat, php.cmd and php.com. Started by Windows itself (CreateProcessW(), what
+		// proc_open() with bypass_shell calls), each runs as the program it is, whatever its name: %ComSpec% plays no part
+		// (checked by hand: pointed at a stand-in, it did not run; it does for a real .bat). Started by cmd.exe, which goes
+		// by the extension, php.com runs, while php.bat and php.cmd are read as batch scripts: cmd.exe echoes the first
+		// "line" of the binary and fails to run it as a command.
+		foreach ($this->facts()['peNames'] as $name => $ran)
+		{
+			$this->assertSame(0, $ran['direct']['status'], $name);
+			$this->assertStringStartsWith('PHP 8.1.', $ran['direct']['stdout'], $name);
+
+			if ($name === 'php.com')
+			{
+				$this->assertSame(0, $ran['cmd']['status'], $name);
+				$this->assertStringStartsWith('PHP 8.1.', $ran['cmd']['stdout'], $name);
+
+				continue;
+			}
+
+			$this->assertSame(1, $ran['cmd']['status'], $name);
+			$this->assertStringStartsNotWith('PHP ', $ran['cmd']['stdout'], $name);
+
+			if (self::isIis())
+			{
+				// Under IIS (fastcgi.impersonate=1), a cmd.exe which proc_open() started runs no batch script at all, not even a
+				// real one, and prints nothing (see README.md).
+				$this->assertSame('', $ran['cmd']['stderr'], $name);
+
+				continue;
+			}
+
+			$this->assertStringStartsWith("'MZ", $ran['cmd']['stderr'], $name);
+			$this->assertStringContainsString('is not recognized as an internal or external command', $ran['cmd']['stderr'], $name);
+		}
 	}
 
 	public function testTheSystemDriveVariable(): void

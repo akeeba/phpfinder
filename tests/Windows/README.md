@@ -168,10 +168,22 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
   directory before the `PATH`.
 - `where php` lists every file named `php` with an extension in `PATHEXT` (`.COM;.EXE;.BAT;.CMD;…`) **and** an
   extensionless `php`, in each directory's order (alphabetical), not `PATHEXT`'s: `php`, `php.bat`, `php.cmd`, `php.com`,
-  `php.exe`. PHP's `is_executable()` is TRUE for a program file whatever its name (a copy of `php.exe` named `php` or
-  `php.com`), FALSE for a `.bat`, a `.cmd` or an extensionless script, on 7.2 to 8.6. A `.bat` which `proc_open()`
-  starts with `bypass_shell` runs through the `cmd.exe` which `%ComSpec%` names: not one in the working directory or
-  first in the `PATH` (checked by hand, 7.2 and 8.4).
+  `php.exe`. PHP's `is_executable()` is `GetBinaryTypeW()` (`access()` with `X_OK` in PHP's Windows I/O layer): TRUE
+  for a program file whatever its name (a copy of `php.exe` named `php`, `php.com`, `php.bat` or `php.cmd`), FALSE for
+  a `.bat`, a `.cmd` or an extensionless script and for an empty `php.exe`, but TRUE for a text file named `php.exe`
+  and for a file with nothing but an `MZ` header, on 7.2 to 8.6 (`FactsTest`; the last one by hand). A `.bat` which
+  `proc_open()` starts with `bypass_shell` runs through the `cmd.exe` which `%ComSpec%` names: not one in the working
+  directory or first in the `PATH` (checked by hand, 7.2 and 8.4).
+- A real program named like a script (PHP 8.1's `php.exe` copied as `php.bat`, `php.cmd`, `php.com`): Windows itself
+  (`CreateProcessW()`, what `proc_open()` with `bypass_shell` calls) runs each as the program it is, whatever its
+  name, and `%ComSpec%` plays no part (pointed at a stand-in, it did not run; it does for a real `.bat`). `cmd.exe`
+  (`exec()`, `proc_open()` without `bypass_shell`, `System32\cmd.exe /c`) goes by the extension: `php.com` runs, while
+  `php.bat` and `php.cmd` are read as batch scripts: it echoes the binary's first "line" and fails with `'MZ…' is not
+  recognized as an internal or external command`, exit code 1 (`FactsTest`; 7.2 and 8.4 by hand, with `%ComSpec%`
+  pointed elsewhere too). So the same `php.bat` is PHP when given to `proc_open()` and garbage through `exec()`:
+  PHPFinder takes neither (only `.exe` PE images, `NonProgramsTest`). Under IIS (`fastcgi.impersonate=1`), a `cmd.exe`
+  which `proc_open()` started runs no batch script at all, a real one neither: exit code 1, nothing printed; `exec()`
+  runs the real one (checked by hand; that the token described below is why is a guess, not checked).
 - `cmd.exe` looks a bare command name (`where`, `wmic`, …) up in the current directory before the `PATH`, and PHP's
   `exec()` starts `cmd.exe` itself by its bare name, which Windows also looks for in the current directory first: a
   `cmd.exe` in the working directory runs instead of Windows' own (`WorkingDirectoryTest`).

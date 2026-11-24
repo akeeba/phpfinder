@@ -160,6 +160,30 @@ $raw = function ($command) {
 };
 
 /**
+ * Run a command line with proc_open() and bypass_shell (CreateProcessW(), no cmd.exe): its exit code, and the first
+ * line of its STDOUT and of its STDERR.
+ */
+$bypass = function ($command) {
+	$process = proc_open($command, [0 => ['file', 'NUL', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, null, ['bypass_shell' => true]);
+
+	if (!is_resource($process))
+	{
+		return null;
+	}
+
+	$stdout = stream_get_contents($pipes[1]);
+	$stderr = stream_get_contents($pipes[2]);
+	fclose($pipes[1]);
+	fclose($pipes[2]);
+
+	$first = function ($text) {
+		return rtrim(explode("\n", str_replace("\r", '', $text))[0]);
+	};
+
+	return ['status' => proc_close($process), 'stdout' => $first($stdout), 'stderr' => $first($stderr)];
+};
+
+/**
  * Which of Windows' tools PHPFinder runs exist in a directory of the Windows directory, as this runner sees it: a
  * 32-bit runner sees SysWOW64 at System32 (WoW64 file system redirection).
  */
@@ -235,6 +259,31 @@ switch ($request['call'])
 				['php.exe' => 'php.exe', 'php.bat' => 'php.bat', 'php.cmd' => 'php.cmd', 'php.com' => 'php.com', 'php' => 'php']
 			),
 			'pleskDir'     => getenv('PLESK_DIR'),
+			// is_executable() is GetBinaryTypeW(): TRUE for more than programs.
+			'isExecutableOther' => array_map(
+				function ($file) {
+					return is_executable($file);
+				},
+				[
+					'text php.exe'  => 'C:\\pf\\fake\\broken\\php.exe',
+					'empty php.exe' => 'C:\\pf\\fake\\zero\\php.exe',
+					'PE php.bat'    => 'C:\\pf\\pe-names\\php.bat',
+					'PE php.cmd'    => 'C:\\pf\\pe-names\\php.cmd',
+				]
+			),
+			// How a program named like a script runs (PHP 8.1 copied as php.bat, php.cmd and php.com): started by Windows
+			// itself (proc_open() with bypass_shell: CreateProcessW()), and by cmd.exe (System32\cmd.exe /d /s /c "…").
+			'peNames'      => array_map(
+				function ($name) use ($bypass) {
+					$file = 'C:\\pf\\pe-names\\' . $name;
+
+					return [
+						'direct' => $bypass('"' . $file . '" -n -v'),
+						'cmd'    => $bypass('"C:\\Windows\\System32\\cmd.exe" /d /s /c ""' . $file . '" -n -v"'),
+					];
+				},
+				['php.bat' => 'php.bat', 'php.cmd' => 'php.cmd', 'php.com' => 'php.com']
+			),
 		];
 		break;
 
