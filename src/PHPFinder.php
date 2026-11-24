@@ -444,8 +444,12 @@ final class PHPFinder
 		{
 			// exec() returns only the last line, and appends to $output: start afresh for each name. `where` prints
 			// "INFO: Could not find files for the given pattern(s)." on STDERR for every name it does not find.
+			// `$PATH:` restricts the search to the PATH: a bare name is looked for in the current directory first, so
+			// any php.exe in the application's working directory would be found, and run.
 			$output = [];
-			$where  = @exec('where ' . escapeshellarg($executable) . ' 2>' . $this->getNullDevice(), $output, $resultCode);
+			$where  = @exec(
+				'where ' . escapeshellarg('$PATH:' . $executable) . ' 2>' . $this->getNullDevice(), $output, $resultCode
+			);
 
 			if ($where === false || $resultCode !== 0)
 			{

@@ -166,13 +166,13 @@ final class StrategiesTest extends TestCase
 		$third  = $this->fakePhp('w/three/php59.exe', '5.9.3');
 
 		// Like Windows' `where`: every match on its own line, CRLF line endings; for no match an INFO line on
-		// STDERR and exit code 1.
+		// STDERR and exit code 1. Only answers `where $PATH:<name>`: a bare name also searches the current directory.
 		$this->fakeExecutable(
 			'bin/where',
 			"echo \"\$*\" >> '" . $this->root() . "/where.log'\n"
 			. "case \"\$1\" in\n"
-			. "  php) printf '%s\\r\\n' '" . $first . "' '" . $second . "' ;;\n"
-			. "  php59) printf '%s\\r\\n' '" . $third . "' ;;\n"
+			. "  '\$PATH:php') printf '%s\\r\\n' '" . $first . "' '" . $second . "' ;;\n"
+			. "  '\$PATH:php59') printf '%s\\r\\n' '" . $third . "' ;;\n"
 			. "  *) echo 'INFO: Could not find files for the given pattern(s).' >&2; exit 1 ;;\n"
 			. "esac\n"
 		);
@@ -187,8 +187,8 @@ final class StrategiesTest extends TestCase
 
 		$this->assertSame([$first, $second, $third], $paths);
 		$this->assertSame([], $diagnostics);
-		$this->assertContains('php', $this->whereLog());
-		$this->assertContains('php59', $this->whereLog());
+		$this->assertContains('$PATH:php', $this->whereLog());
+		$this->assertContains('$PATH:php59', $this->whereLog());
 
 		$this->assertSame([], $this->callPrivate($this->simulateOs($this->finder(['useWhere' => false]), 'Windows'), 'pathsUsingWhere', ['5.9']));
 	}

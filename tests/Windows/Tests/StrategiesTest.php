@@ -47,15 +47,9 @@ final class StrategiesTest extends AbstractWindowsTestCase
 			'getPossiblePaths', '8.2', self::isolated(['useWhere' => true]), self::PATH_SYSTEM, [], null, self::PATH_B
 		);
 
+		// Used to run `where php`, which searches the current directory before the PATH.
+		$this->assertSame([], $response['result']);
 		$this->assertClean($response);
-
-		$this->expectKnownBug(
-			'pathsUsingWhere() runs `where php`, which searches the current directory before the PATH, so a php.exe '
-			. 'in the working directory of the application is found and run (known-issues row 28).',
-			function () use ($response) {
-				$this->assertSame([], $response['result']);
-			}
-		);
 	}
 
 	public function testWhereIsGated(): void
