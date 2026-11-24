@@ -229,6 +229,19 @@ final class Configuration
 	}
 
 	/**
+	 * Magic property existence check, used by isset() and empty().
+	 *
+	 * @param   string  $name  The property name to check.
+	 *
+	 * @return  bool  True if it is a configuration property.
+	 * @since   1.0.0
+	 */
+	public function __isset($name)
+	{
+		return property_exists($this, $name);
+	}
+
+	/**
 	 * Magic property setter.
 	 *
 	 * @param   string  $name   The property name to set.
