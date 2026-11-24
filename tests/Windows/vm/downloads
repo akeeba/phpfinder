@@ -1,0 +1,18 @@
+# Everything the PHPFinder test VMs without WMIC download, pinned by the SHA-256 of the bytes actually downloaded.
+#
+# One file per line: <file name> <sha256> <url> [<fallback url>…]. pfvm.sh checks each hash on the KVM host (and fetches
+# only its own OS's ISO), and guest/setup.ps1 checks the others again in the guest. Bump a pin only with a hash computed
+# from what was downloaded, never typed or copied from a web page. The URLs are the ones Microsoft's evaluation center
+# links (go.microsoft.com/fwlink/?linkid=2293312 and 2289031, en-us) redirected to: the fwlinks can change under a pin.
+#
+# Windows Server 2025 evaluation, English (United States): build 26100.1742 (September 2024). Standard and Datacenter,
+# Server Core and Desktop Experience; pfvm.sh installs Standard, Server Core. The evaluation licence lasts 180 days.
+26100.1742.240906-0331.ge_release_svc_refresh_SERVER_EVAL_x64FRE_en-us.iso d0ef4502e350e3c6c53c15b1b3020d38a5ded011bf04998e950720ac8579b23d https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26100.1742.240906-0331.ge_release_svc_refresh_SERVER_EVAL_x64FRE_en-us.iso
+# Windows 11 Enterprise evaluation, English (United States): 24H2, build 26100.1742 (September 2024). The evaluation
+# licence lasts 90 days.
+26100.1742.240906-0331.ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso 755a90d43e826a74b9e1932a34788b898e028272439b777e5593dee8d53622ae https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26100.1742.240906-0331.ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso
+# PHP 8.4, non-thread-safe, x64, unpacked into C:\php: what tests/Windows/guest/provision.ps1 expects of a VM (the
+# 8.4 runner and the C:\PHP fixture), as on the shared IIS VM (the same build as its pin). Superseded: archives/ first.
+php-8.4.27-1-nts-Win32-vs17-x64.zip dbae154a0a89791f36c3d48e68bae797878333e7d6cb5721e74617de59b63ab7 https://downloads.php.net/~windows/releases/archives/php-8.4.27-1-nts-Win32-vs17-x64.zip https://downloads.php.net/~windows/releases/php-8.4.27-1-nts-Win32-vs17-x64.zip
+# The Visual C++ v14 redistributable from Visual Studio 2026, x64, which PHP needs: the same pin as ../downloads.
+vc_redist.x64.exe 9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9 https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe
