@@ -281,7 +281,7 @@ final class PHPFinder
 	/**
 	 * Find possible PHP paths using `update-alternatives`.
 	 *
-	 * Available on Linux (only Debian and derivatives). Fast.
+	 * Available on Debian and derivatives (Linux, and Debian GNU/kFreeBSD). Fast.
 	 *
 	 * @param   string|null  $version  Optional PHP version to look for
 	 *
@@ -293,7 +293,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useUpdateAlternatives
-			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
+			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
 		)
 		{
 			return [];

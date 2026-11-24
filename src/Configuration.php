@@ -234,7 +234,7 @@ final class Configuration
 	 * @param   string  $name  The property name to check.
 	 *
 	 * @return  bool  True if it is a configuration property.
-	 * @since   1.0.0
+	 * @since   1.0.2
 	 */
 	public function __isset($name)
 	{

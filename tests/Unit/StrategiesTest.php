@@ -55,9 +55,9 @@ final class StrategiesTest extends TestCase
 
 	public function testUpdateAlternativesFindsBinaries(): void
 	{
-		if (strtoupper(PHP_OS_FAMILY) !== 'LINUX')
+		if (!in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'], true))
 		{
-			$this->markTestSkipped('update-alternatives is only used on Linux.');
+			$this->markTestSkipped('update-alternatives is only used on Linux and BSD (Debian GNU/kFreeBSD).');
 		}
 
 		$php = $this->fakePhp('ua/php59', '5.9.1');
@@ -79,11 +79,11 @@ final class StrategiesTest extends TestCase
 		$this->assertSame($php, $finder->getBestPath('5.9'));
 	}
 
-	public function testUpdateAlternativesOnlyRunsOnLinux(): void
+	public function testUpdateAlternativesOnlyRunsOnLinuxAndBsd(): void
 	{
-		if (strtoupper(PHP_OS_FAMILY) === 'LINUX')
+		if (in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'], true))
 		{
-			$this->markTestSkipped('Not applicable on Linux.');
+			$this->markTestSkipped('Not applicable on Linux and BSD.');
 		}
 
 		$php = $this->fakePhp('ua/php59', '5.9.1');
@@ -94,7 +94,7 @@ final class StrategiesTest extends TestCase
 			. "echo '" . $php . "'\n"
 		);
 
-		// Used to run everywhere BUT Linux and BSD.
+		// Used to run everywhere BUT Linux and BSD (the check was inverted).
 		$paths = $this->finder(['useUpdateAlternatives' => true])->getPossiblePaths('5.9');
 
 		$this->assertNotContains($php, $paths);
