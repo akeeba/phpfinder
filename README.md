@@ -27,6 +27,8 @@ The environments currently supported are:
 
 You can try to locate a specific version of PHP (by `major.minor` or `major.minor.patch` version specification), or just any available PHP version.
 
+When looking for a specific version, the version reported by each PHP binary must match the one you asked for on whole version components, from the start: asking for `8.3` accepts PHP 8.3.0 or 8.3.12, but not PHP 8.30.0 or 7.8.3; asking for `8.3.1` accepts PHP 8.3.1 (or 8.3.1-dev), but not 8.3.10.
+
 ## Use case
 
 We have mass-distributed web applications which are meant to be installed and operated by non-technical end users. 

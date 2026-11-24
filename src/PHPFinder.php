@@ -62,7 +62,9 @@ final class PHPFinder
 	 * If no suitable executable is found (there is no PHP CLI executable installed, or it uses an uncommon path) NULL
 	 * will be returned as well.
 	 *
-	 * @param   string|null  $version  The version to look for.
+	 * @param   string|null  $version  The version to look for, e.g. 8.3 or 8.3.1. With version validation, the
+	 *                                 binary's version must match it on whole components: 8.3 matches 8.3.12,
+	 *                                 but not 8.30.0 or 7.8.3.
 	 *
 	 * @return  string|null
 	 * @since   1.0.0
@@ -107,7 +109,7 @@ final class PHPFinder
 			if (
 				$this->configuration->validateVersion
 				&& !empty($version)
-				&& strpos($info->version, $version) === false
+				&& !$this->versionMatches($info->version, $version)
 			)
 			{
 				continue;
@@ -868,6 +870,24 @@ final class PHPFinder
 		$minor = $major === null ? null : ($minor ?: null);
 
 		return [$major, $minor];
+	}
+
+	/**
+	 * Does the version a binary reports match the version we are looking for?
+	 *
+	 * The requested version must match whole version components, from the start: "8.3" matches 8.3, 8.3.1 and
+	 * 8.3.12, but not 8.30.0 or 7.8.3; "8.3.1" matches 8.3.1 and 8.3.1-dev, but not 8.3.10.
+	 *
+	 * @param   string  $actual     The version the binary reports, e.g. 8.3.12
+	 * @param   string  $requested  The version we are looking for, e.g. 8.3
+	 *
+	 * @return  bool
+	 * @since   1.0.2
+	 */
+	private function versionMatches(string $actual, string $requested): bool
+	{
+		// A prefix which is not followed by another digit, i.e. which ends at a component boundary.
+		return preg_match('/^' . preg_quote($requested, '/') . '(?![0-9])/', $actual) === 1;
 	}
 
 	/**

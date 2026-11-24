@@ -210,21 +210,62 @@ final class PHPFinderTest extends TestCase
 
 	public function testVersionValidationMatchesWholeVersionComponents(): void
 	{
+		// Used to be a substring match: "5.9" accepted PHP 7.5.9, "7" accepted PHP 8.1.7.
 		$fake59 = $this->fakePhp('bin/php59', '7.5.9');
 		$fake7  = $this->fakePhp('bin/php7', '8.1.7');
 
-		$this->expectKnownBug(
-			'getBestPathMeta() validates with strpos($info->version, $version), a substring match: asking for '
-			. '"5.9" accepts PHP 7.5.9, and asking for "7" accepts PHP 8.1.7. It should be a prefix match on '
-			. 'whole version components ("5.9" matches 5.9 and 5.9.x only).',
-			function () use ($fake59, $fake7) {
-				$finder = $this->finder(['useWhich' => true]);
+		$finder = $this->finder(['useWhich' => true]);
 
-				// Not assertNull: a real PHP 7 on the host would rightly be returned for "7".
-				$this->assertNotSame($fake59, $finder->getBestPath('5.9'), 'PHP 7.5.9 accepted as 5.9');
-				$this->assertNotSame($fake7, $finder->getBestPath('7'), 'PHP 8.1.7 accepted as 7');
-			}
-		);
+		// Not assertNull: a real PHP 7 on the host would rightly be returned for "7".
+		$this->assertNotSame($fake59, $finder->getBestPath('5.9'), 'PHP 7.5.9 accepted as 5.9');
+		$this->assertNotSame($fake7, $finder->getBestPath('7'), 'PHP 8.1.7 accepted as 7');
+	}
+
+	public function testVersionValidationAcceptsTheRequestedMajorOrMinor(): void
+	{
+		// A major version is searched for as php5, a minor one as php59.
+		$php5  = $this->fakePhp('bin/php5', '5.9.1');
+		$php59 = $this->fakePhp('bin/php59', '5.9.1');
+
+		$finder = $this->finder(['useWhich' => true]);
+
+		$this->assertSame($php5, $finder->getBestPath('5'));
+		$this->assertSame($php59, $finder->getBestPath('5.9'));
+		$this->assertSame($php59, $finder->getBestPath('5.9.1'));
+		$this->assertNull($finder->getBestPath('5.9.10'));
+	}
+
+	public function testVersionMatches(): void
+	{
+		$finder = new PHPFinder();
+		$cases  = [
+			// requested, actual, matches?
+			['5.9', '5.9', true],
+			['5.9', '5.9.1', true],
+			['5.9', '7.5.9', false],
+			['5.9', '5.90.1', false],
+			['7', '7.4.33', true],
+			['7', '8.1.7', false],
+			['7', '17.0.0', false],
+			['8.3.1', '8.3.1', true],
+			['8.3.1', '8.3.10', false],
+			['8.4', '8.40.0', false],
+			['8.4', '8.4.0RC1', true],
+			['8.4.0', '8.4.0-dev', true],
+			['8.4.0-dev', '8.4.0', false],
+			['8.1.2-1ubuntu2.14', '8.1.2-1ubuntu2.14', true],
+		];
+
+		foreach ($cases as $case)
+		{
+			[$requested, $actual, $expected] = $case;
+
+			$this->assertSame(
+				$expected,
+				$this->callPrivate($finder, 'versionMatches', [$actual, $requested]),
+				sprintf('"%s" requested, "%s" found', $requested, $actual)
+			);
+		}
 	}
 
 	public function testBestPathWithoutAVersionFindsTheCurrentInterpreter(): void
