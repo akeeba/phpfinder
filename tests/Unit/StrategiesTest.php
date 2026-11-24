@@ -10,6 +10,7 @@
 namespace Akeeba\PHPFinder\Tests\Unit;
 
 use Akeeba\PHPFinder\Tests\Support\FakeSystem;
+use Akeeba\PHPFinder\Tests\Support\KnownBug;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -19,6 +20,7 @@ use PHPUnit\Framework\TestCase;
 final class StrategiesTest extends TestCase
 {
 	use FakeSystem;
+	use KnownBug;
 
 	protected function setUp(): void
 	{
@@ -225,6 +227,23 @@ final class StrategiesTest extends TestCase
 		$this->assertSame(
 			['C:', 'D:', 'E:'],
 			array_values($this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives'))
+		);
+	}
+
+	public function testWindowsDrivesFallBackWhenWmicListsNone(): void
+	{
+		// A wmic which runs, but lists no drive (or fails, e.g. with WMI broken).
+		$this->fakeExecutable('bin/wmic', "printf 'No Instance(s) Available.\\r\\r\\n'\n");
+		$this->fakeExecutable('bin/fsutil', "printf '\\r\\nDrives: C:\\\\ D:\\\\ \\r\\n'\n");
+
+		$finder = $this->simulateOs($this->finder(), 'Windows');
+
+		$this->expectKnownBug(
+			'getWindowsDrives() returns [] when wmic runs but lists no drive letter: exec() did not return false, so '
+			. 'neither the fsutil fallback nor %SYSTEMDRIVE% is tried (known-issues row 23).',
+			function () use ($finder) {
+				$this->assertSame(['C:', 'D:'], array_values($this->callPrivate($finder, 'getWindowsDrives')));
+			}
 		);
 	}
 
