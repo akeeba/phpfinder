@@ -200,7 +200,9 @@ final class Configuration
 
 		foreach ($config as $key => $value)
 		{
-			$configuration->{$key} = $value;
+			// Known properties are private, so inside the class this write bypasses __set(); coerce explicitly.
+			// Unknown keys still go through __set(), which rejects them.
+			$configuration->{$key} = property_exists($configuration, $key) ? @boolval($value) : $value;
 		}
 
 		return $configuration;
