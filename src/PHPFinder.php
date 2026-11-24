@@ -380,12 +380,14 @@ final class PHPFinder
 		{
 			$result = @exec('whereis -b ' . escapeshellarg($executable) . ' 2>/dev/null');
 
-			if ($result === false)
+			// "name: /path/one /path/two", or "name:" when nothing is found. exec() returns '' for no output.
+			if ($result === false || strpos($result, ':') === false)
 			{
 				continue;
 			}
 
-			[, $rawList] = explode(':', $result);
+			// Only the first colon ends the name: the paths may have colons, too.
+			[, $rawList] = explode(':', $result, 2);
 			$list = explode(' ', $rawList);
 			$list = array_filter($list);
 

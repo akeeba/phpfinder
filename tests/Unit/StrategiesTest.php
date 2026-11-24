@@ -42,6 +42,33 @@ final class StrategiesTest extends TestCase
 		$this->assertSame([], $diagnostics);
 	}
 
+	public function testWhereIsWithoutTheUsualOutput(): void
+	{
+		// The PHP 5.9 binary is in a directory whose name has a colon, which is legal on macOS and Linux.
+		$php = $this->fakePhp('wi:x/php59', '5.9.1');
+
+		// A `whereis` which prints nothing at all for `php`, and a line without the "name:" prefix for php5.9.
+		$this->fakeExecutable(
+			'bin/whereis',
+			"[ \"\$1\" = '-b' ] || exit 2\n"
+			. "case \"\$2\" in\n"
+			. "  php) ;;\n"
+			. "  php5.9) echo 'whereis -b is not supported' ;;\n"
+			. "  php59) echo \"\$2: " . $php . "\" ;;\n"
+			. "  *) echo \"\$2:\" ;;\n"
+			. "esac\n"
+		);
+
+		// Used to split each line with `[, $rawList] = explode(':', $result)`: "Undefined array key 1" (an
+		// "Undefined offset: 1" notice on PHP 7) without a colon, and a path cut at its first colon.
+		[$result, $diagnostics] = $this->withDiagnostics(function () {
+			return $this->finder(['useWhereIs' => true])->getBestPath('5.9');
+		});
+
+		$this->assertSame([], $diagnostics);
+		$this->assertSame($php, $result);
+	}
+
 	public function testWhereIsIsGated(): void
 	{
 		$php = $this->fakeWhereIs();
