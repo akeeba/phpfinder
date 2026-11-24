@@ -406,6 +406,30 @@ final class CandidatesTest extends TestCase
 		$this->assertSame([], $diagnostics);
 	}
 
+	public function testMampPathsOnWindows(): void
+	{
+		// MAMP for Windows keeps each PHP version in its own directory: <drive>\MAMP\bin\php\php8.3.1\php.exe
+		$php = $this->fakePhp('D:\\MAMP\\bin\\php/php5.9.1/php.exe', '5.9.1');
+		$this->fakePhp('D:\\MAMP\\bin\\php/php5.9.1/ext/php.exe', '5.9.1');
+
+		$finder = $this->simulateOs($this->finder(['softwareSpecific' => true]), 'Windows');
+		$this->setPrivate($finder, 'windowsDrives', [$this->fakeWindowsDrive('C'), $this->fakeWindowsDrive('D')]);
+
+		// Used to look for the MAMP directory on each drive, then return [] whatever it found.
+		[$paths, $diagnostics] = $this->withDiagnostics(function () use ($finder) {
+			return $this->callPrivate($finder, 'pathsMAMP', ['5.9']);
+		});
+
+		$this->assertSame([$php], $paths);
+		$this->assertSame([], $diagnostics);
+		$this->assertContains($php, $finder->getPossiblePaths('5.9'));
+
+		$off = $this->simulateOs($this->finder(['softwareSpecific' => false]), 'Windows');
+		$this->setPrivate($off, 'windowsDrives', [$this->fakeWindowsDrive('D')]);
+
+		$this->assertSame([], $this->callPrivate($off, 'pathsMAMP', ['5.9']));
+	}
+
 	public function testWampServerPaths(): void
 	{
 		// WAMPServer keeps each PHP version in its own directory: <drive>\wamp64\bin\php\php8.3.6\php.exe

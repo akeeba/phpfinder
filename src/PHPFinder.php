@@ -731,22 +731,18 @@ final class PHPFinder
 				break;
 
 			case 'WINDOWS':
-				$drives = $this->getWindowsDrives();
+				// Each PHP version in its own directory: <drive>\MAMP\bin\php\php8.3.1\php.exe
+				$ret = [];
 
-				foreach ($drives as $drive)
+				foreach ($this->getWindowsDrives() as $drive)
 				{
-					$rootPath = $drive . '\\MAMP\\bin\\php';
-
-					if (!@is_dir($rootPath))
-					{
-						continue;
-					}
-
-					$rootPath .= '\\';
-					break;
+					$ret = array_merge(
+						$ret,
+						$this->recursivePathScanner(rtrim($drive, '\\') . '\\MAMP\\bin\\php', 0, 1, ['php'])
+					);
 				}
 
-				return [];
+				return $ret;
 
 			default:
 				return [];
