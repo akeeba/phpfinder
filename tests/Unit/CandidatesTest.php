@@ -541,7 +541,7 @@ final class CandidatesTest extends TestCase
 
 		// A wmic which logs its calls.
 		$this->fakeExecutable(
-			'bin/wmic',
+			self::windowsTool('wmic'),
 			"echo \"\$*\" >> '" . $this->root() . "/wmic.log'\n"
 			. "printf 'Name\\nC:\\n'\n"
 		);

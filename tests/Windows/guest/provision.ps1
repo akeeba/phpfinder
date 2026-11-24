@@ -14,7 +14,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $pf = 'C:\pf'
 $dl = "$pf\dl"
-New-Item -ItemType Directory -Force -Path $dl, "$pf\run", "$pf\work", "$pf\fake" | Out-Null
+New-Item -ItemType Directory -Force -Path $dl, "$pf\run", "$pf\work", "$pf\fake\empty" | Out-Null
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 1. Downloads
@@ -131,20 +131,96 @@ New-Fixture '8.3' "$pf\path-cgi" 'php.exe' 'php-cgi.exe' 'cgi-fcgi'
 New-Fixture '8.5' "$pf\odd %PF_UNDEFINED% & (x) !bang ^caret"
 New-Fixture '8.5' "$pf\odd %OS%"
 
-# Stand-ins for a wmic which lists no drive (the "No Instance(s) Available." of a real wmic goes to STDERR; STDOUT
-# only gets blank lines), for a wmic, fsutil or PowerShell which prints an error on STDOUT, and an empty directory for
-# a PATH without any of the tools. The tests put them in the PATH before the system directories: PHPFinder sees the
-# real WMIC.exe, fsutil.exe and powershell.exe there (is_executable() is FALSE for a .bat file), but cmd.exe runs the
-# .bat which comes first in the PATH.
-New-Item -ItemType Directory -Force "$pf\fake\wmic-none", "$pf\fake\wmic-error", "$pf\fake\fsutil-error", `
-    "$pf\fake\powershell-error", "$pf\fake\empty" | Out-Null
-Set-Content "$pf\fake\wmic-none\wmic.bat" "@echo off`r`necho No Instance(s) Available. 1>&2`r`necho.`r`necho.`r`n" -Encoding ascii
-Set-Content "$pf\fake\wmic-error\wmic.bat" "@echo off`r`necho ERROR:`r`necho Description = Access denied.`r`nexit /b 1`r`n" -Encoding ascii
-Set-Content "$pf\fake\fsutil-error\fsutil.bat" "@echo off`r`necho Error:  Access is denied.`r`nexit /b 1`r`n" -Encoding ascii
 # A php.exe which is not a program at all.
 New-Item -ItemType Directory -Force "$pf\fake\broken" | Out-Null
 Set-Content "$pf\fake\broken\php.exe" 'This is not a program.' -Encoding ascii
-Set-Content "$pf\fake\powershell-error\powershell.bat" "@echo off`r`necho Program 'powershell.exe' failed to run: Access is denied`r`nexit /b 1`r`n" -Encoding ascii
+
+# A stand-in for Windows' tools, compiled here (.NET Framework's C# compiler, through Add-Type). Copied under a tool's
+# name (where.exe, WMIC.exe, …), it appends its command line to <name>.ran next to itself, so a test can tell that it
+# ran; prints the bytes of <name>.stdout, if there is one; and exits with the number in <name>.exitcode, or 0.
+$fakeTool = "$pf\fake\fake-tool.exe"
+Add-Type -OutputType ConsoleApplication -OutputAssembly $fakeTool -TypeDefinition @'
+using System;
+using System.IO;
+
+public static class PfFakeTool
+{
+    public static int Main(string[] args)
+    {
+        string exe  = System.Reflection.Assembly.GetEntryAssembly().Location;
+        string dir  = Path.GetDirectoryName(exe);
+        string name = Path.GetFileNameWithoutExtension(exe);
+
+        try { File.AppendAllText(Path.Combine(dir, name + ".ran"), Environment.CommandLine + "\r\n"); } catch (Exception) { }
+
+        string stdout = Path.Combine(dir, name + ".stdout");
+
+        if (File.Exists(stdout))
+        {
+            byte[] bytes = File.ReadAllBytes(stdout);
+
+            using (Stream stream = Console.OpenStandardOutput())
+            {
+                stream.Write(bytes, 0, bytes.Length);
+            }
+        }
+
+        string code = Path.Combine(dir, name + ".exitcode");
+
+        return File.Exists(code) ? int.Parse(File.ReadAllText(code).Trim()) : 0;
+    }
+}
+'@
+if (-not (Test-Path $fakeTool)) { throw 'Could not compile the fake tool' }
+
+# New-FakeTool <directory> <file name> [<what it prints>] [<exit code>]
+function New-FakeTool([string]$dir, [string]$name, [string]$stdout = $null, [int]$exitCode = 0) {
+    [IO.Directory]::CreateDirectory($dir) | Out-Null
+    Copy-Item $fakeTool (Join-Path $dir $name)
+    $base = Join-Path $dir ([IO.Path]::GetFileNameWithoutExtension($name))
+    if ($null -ne $stdout) { [IO.File]::WriteAllText("$base.stdout", $stdout, [Text.Encoding]::ASCII) }
+    if ($exitCode -ne 0) { [IO.File]::WriteAllText("$base.exitcode", "$exitCode", [Text.Encoding]::ASCII) }
+}
+
+# Windows directories with stand-ins for misbehaving tools, at the paths PHPFinder runs them from: a wmic which lists no
+# drive (a real one prints "No Instance(s) Available." on STDERR, blank lines on STDOUT), tools which print an error on
+# STDOUT, and none at all. A test gives one to the library instead of C:\Windows (PHPFinder's private
+# $windowsDirectory). The stand-ins which do list the drives print what the real tools print (see FactsTest).
+$wmic   = 'System32\wbem\WMIC.exe'
+$fsutil = 'System32\fsutil.exe'
+$ps     = 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$w      = "$pf\fakewin"
+# Each also gets a copy of Windows' own cmd.exe, through which PHPFinder runs the tools.
+function Add-FakeWindowsTool([string]$case, [string]$tool, [string]$stdout = $null, [int]$exitCode = 0) {
+    New-FakeTool (Split-Path (Join-Path "$w\$case" $tool)) (Split-Path $tool -Leaf) $stdout $exitCode
+    Copy-Item "$env:windir\System32\cmd.exe" "$w\$case\System32\cmd.exe" -Force
+}
+$drivesFsutil = "`r`nDrives: C:\ D:\ E:\ `r`n"
+$drivesPs     = "C:\`r`nD:\`r`nE:\`r`n"
+Add-FakeWindowsTool 'wmic-none'  $wmic   "`r`r`n`r`r`n"
+Add-FakeWindowsTool 'wmic-none'  $fsutil $drivesFsutil
+Add-FakeWindowsTool 'wmic-error' $wmic   "ERROR:`r`nDescription = Access denied.`r`n" 1
+Add-FakeWindowsTool 'wmic-error' $fsutil $drivesFsutil
+Add-FakeWindowsTool 'fsutil-error' $fsutil "Error:  Access is denied.`r`n" 1
+Add-FakeWindowsTool 'fsutil-error' $ps     $drivesPs
+Add-FakeWindowsTool 'all-fail' $wmic   "`r`r`n`r`r`n"
+Add-FakeWindowsTool 'all-fail' $fsutil "Error:  Access is denied.`r`n" 1
+Add-FakeWindowsTool 'all-fail' $ps     "Program 'powershell.exe' failed to run: Access is denied`r`n" 1
+New-Item -ItemType Directory -Force "$w\empty" | Out-Null
+
+# A working directory with stand-ins for where, wmic, fsutil and PowerShell, which print nothing (so that code which
+# runs them by their bare names would try every one in turn), and one with a stand-in cmd.exe. Writable by IIS's
+# application pool identity too, for the <name>.ran files.
+foreach ($name in 'where.exe', 'wmic.exe', 'fsutil.exe', 'powershell.exe') { New-FakeTool "$pf\planted" $name }
+New-FakeTool "$pf\planted-cmd" 'cmd.exe'
+foreach ($dir in "$pf\planted", "$pf\planted-cmd") { & icacls $dir /grant 'Everyone:(OI)(CI)M' | Out-Null }
+
+# Let the suite hide wmic and fsutil for real (a Windows without wmic: Windows 11 24H2, Windows Server 2025), by
+# renaming them (relay.php). They belong to TrustedInstaller; the VM's snapshot restores them on the next start.
+foreach ($tool in "$env:windir\$wmic", "$env:windir\$fsutil") {
+    & takeown /f $tool /a | Out-Null
+    & icacls $tool /grant 'Administrators:F' | Out-Null
+}
 
 # The library, run by IIS (FastCGI, C:\php\php-cgi.exe 8.4) as a web application would be.
 #

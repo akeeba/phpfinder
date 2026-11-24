@@ -14,19 +14,30 @@ use Akeeba\PHPFinder\Tests\Windows\AbstractWindowsTestCase;
 /**
  * The Windows drive list (getWindowsDrives()), which the common-directory, MAMP, WAMPServer and XAMPP searches scan.
  *
- * The guest has C: (system), D: (a VHD provision.ps1 attaches) and E: (an empty CD drive). A missing wmic is a PATH
- * without C:\Windows\System32\Wbem, which is exactly what PHPFinder checks for. The misbehaving tools are .bat
- * stand-ins (provision.ps1) in the PATH before the system directories: PHPFinder sees that the real tool exists, and
- * cmd.exe runs the stand-in, which comes first.
+ * The guest has C: (system), D: (a VHD provision.ps1 attaches) and E: (an empty CD drive). PHPFinder runs wmic, fsutil
+ * and PowerShell from the Windows directory, by their full paths. A Windows without wmic (Windows 11 24H2, Windows
+ * Server 2025), or without fsutil, is the real one with those renamed for the duration of a test (hideTools()). The
+ * misbehaving tools are stand-ins (provision.ps1) in a Windows directory of their own, which the test gives to the
+ * library instead of C:\Windows.
  */
 final class DrivesTest extends AbstractWindowsTestCase
 {
+	protected function tearDown(): void
+	{
+		self::hideTools(['wmic' => false, 'fsutil' => false]);
+
+		parent::tearDown();
+	}
+
 	/**
 	 * Assert the drive list first, then that nothing was printed on STDERR or raised as a PHP diagnostic.
 	 */
-	private function assertDrives(array $expected, string $path, array $env = []): void
+	private function assertDrives(array $expected, ?string $windowsDirectory, array $env = [], array $options = []): void
 	{
-		$response = $this->probe('drives', null, [], $path, $env);
+		$response = $this->probe(
+			'drives', null, [], self::PATH_SYSTEM, $env, null, null,
+			array_merge(['windowsDirectory' => $windowsDirectory], $options)
+		);
 
 		$this->assertSame($expected, $response['result']);
 		$this->assertClean($response);
@@ -34,54 +45,64 @@ final class DrivesTest extends AbstractWindowsTestCase
 
 	public function testDrivesFromWmic(): void
 	{
-		$this->assertDrives(self::ALL_DRIVES, self::PATH_SYSTEM);
+		$this->assertDrives(self::ALL_DRIVES, null);
 	}
 
 	public function testDrivesFromFsutilWithoutWmic(): void
 	{
-		$this->assertDrives(self::ALL_DRIVES, self::PATH_NO_WMIC);
+		// Windows' own fsutil, with WMIC.exe gone, as on Windows 11 24H2 and Windows Server 2025.
+		self::hideTools(['wmic' => true]);
+
+		$this->assertDrives(self::ALL_DRIVES, null);
+	}
+
+	public function testDrivesFromPowerShellWithoutWmicAndFsutil(): void
+	{
+		// Windows' own PowerShell.
+		self::hideTools(['wmic' => true, 'fsutil' => true]);
+
+		$this->assertDrives(self::ALL_DRIVES, null);
 	}
 
 	public function testDrivesFromFsutilWhenWmicListsNone(): void
 	{
-		$this->assertDrives(self::ALL_DRIVES, self::FAKE_WMIC_NONE . ';' . self::PATH_SYSTEM);
+		$this->assertDrives(self::ALL_DRIVES, self::WIN_WMIC_NONE);
 	}
 
 	public function testWmicErrorLinesAreNotDrives(): void
 	{
-		$this->assertDrives(self::ALL_DRIVES, self::FAKE_WMIC_ERROR . ';' . self::PATH_SYSTEM);
+		$this->assertDrives(self::ALL_DRIVES, self::WIN_WMIC_ERROR);
 	}
 
 	public function testFsutilErrorLinesAreNotDrives(): void
 	{
 		// No wmic, and an fsutil which fails: PowerShell lists the drives.
-		$this->assertDrives(self::ALL_DRIVES, self::FAKE_FSUTIL_ERROR . ';' . self::PATH_NO_WMIC);
-	}
-
-	public function testDrivesFromPowerShellWhenWmicAndFsutilFail(): void
-	{
-		$this->assertDrives(
-			self::ALL_DRIVES, self::FAKE_WMIC_NONE . ';' . self::FAKE_FSUTIL_ERROR . ';' . self::PATH_SYSTEM
-		);
+		$this->assertDrives(self::ALL_DRIVES, self::WIN_FSUTIL_ERROR);
 	}
 
 	public function testTheSystemDriveWhenNoToolWorks(): void
 	{
 		// Every tool exists, and fails.
-		$this->assertDrives(
-			['C:'],
-			self::FAKE_WMIC_NONE . ';' . self::FAKE_FSUTIL_ERROR . ';' . self::FAKE_POWERSHELL_ERROR . ';' . self::PATH_SYSTEM
-		);
+		$this->assertDrives(['C:'], self::WIN_ALL_FAIL);
 
-		// No tool in the PATH at all.
-		$this->assertDrives(['C:'], self::EMPTY_DIR);
+		// No tool at all.
+		$this->assertDrives(['C:'], self::WIN_EMPTY);
+	}
+
+	public function testTheToolsDoNotDependOnThePath(): void
+	{
+		// They run by their full paths: a PATH without Windows' own directories makes no difference.
+		$response = $this->probe('drives', null, [], self::EMPTY_PATH);
+
+		$this->assertSame(self::ALL_DRIVES, $response['result']);
+		$this->assertClean($response);
 	}
 
 	public function testTheSystemDriveIsAlwaysIncluded(): void
 	{
 		// A SYSTEMDRIVE which no tool lists (as SUBST drives of another logon session are not listed): kept first.
-		$this->assertDrives(['Q:', 'C:', 'D:', 'E:'], self::PATH_SYSTEM, ['SYSTEMDRIVE' => 'Q:']);
-		$this->assertDrives(['Q:'], self::EMPTY_DIR, ['SYSTEMDRIVE' => 'Q:']);
+		$this->assertDrives(['Q:', 'C:', 'D:', 'E:'], null, ['SYSTEMDRIVE' => 'Q:']);
+		$this->assertDrives(['Q:'], self::WIN_EMPTY, ['SYSTEMDRIVE' => 'Q:']);
 	}
 
 	public function testDrivesWithTheProcessEnvironment(): void
@@ -96,9 +117,22 @@ final class DrivesTest extends AbstractWindowsTestCase
 	public function testTheSecondDriveIsSearchedWhenWmicListsNone(): void
 	{
 		// End to end: the drive-based searches find nothing on D: when the drive list is wrong.
+		$response = $this->probe(
+			'getBestPath', '8.5', self::isolated(['usePHPCommonWinDirsSearch' => true]), self::PATH_SYSTEM, [], null, null,
+			['windowsDirectory' => self::WIN_WMIC_NONE]
+		);
+
+		$this->assertSame(self::SECOND_DRIVE_85, $response['result']);
+		$this->assertClean($response);
+	}
+
+	public function testTheSecondDriveIsSearchedWithoutWmic(): void
+	{
+		self::hideTools(['wmic' => true]);
+
 		$this->assertSame(
 			self::SECOND_DRIVE_85,
-			$this->bestPath('8.5', self::isolated(['usePHPCommonWinDirsSearch' => true]), self::FAKE_WMIC_NONE . ';' . self::PATH_SYSTEM)
+			$this->bestPath('8.5', self::isolated(['usePHPCommonWinDirsSearch' => true]), self::PATH_SYSTEM)
 		);
 	}
 }

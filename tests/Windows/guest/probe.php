@@ -17,9 +17,16 @@
  *
  * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths" | "drives" | "analyze" | "facts",
  *            "version": "8.3" | null, "config": {"useWhere": true, …}, "path": "C:\\pf\\path-a;…" | null,
- *            "env": {"plesk_dir": "…"}, "arg": "C:\\…\\php.exe" (analyze only), "cwd": "C:\\…" | null}
+ *            "env": {"plesk_dir": "…"}, "arg": "C:\\…\\php.exe" (analyze only), "cwd": "C:\\…" | null,
+ *            "windowsDirectory": "C:\\pf\\fakewin\\…" | null}
  * Response: {"result": …, "diagnostics": ["…"], "runner": "8.5", "runnerVersion": "8.5.13", "sapi": "cli",
- *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe"}
+ *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe", "ran": ["where", …]}
+ *
+ * "windowsDirectory" sets PHPFinder's private $windowsDirectory, where it runs Windows' own tools from (when the
+ * library has it: not an older one given to run.sh with --src). "ran" lists the stand-in tools (provision.ps1's fake
+ * tool) which ran in the working directory during the call: the <name>.ran files there, removed before the call.
+ *
+ * "exec" runs the command in "arg" with PHP's exec() and returns what it printed, its exit code and "ran" (above).
  *
  * "drives" and "analyze" call PHPFinder's private getWindowsDrives() and analyzePHPVersion() through a bound
  * closure, as the unit tests do. "facts" returns what the Windows tools print, byte for byte, as PHP's exec() sees it.
@@ -84,6 +91,25 @@ set_error_handler(
 );
 
 $finder  = new PHPFinder($config);
+
+if (!empty($request['windowsDirectory']) && property_exists($finder, 'windowsDirectory'))
+{
+	\Closure::bind(
+		function ($directory) {
+			$this->windowsDirectory = $directory;
+		},
+		$finder,
+		PHPFinder::class
+	)($request['windowsDirectory']);
+}
+
+// The stand-in tools leave a <name>.ran file next to themselves when they run.
+$markerDir = getcwd();
+
+foreach (glob($markerDir . '\\*.ran') ?: [] as $marker)
+{
+	@unlink($marker);
+}
 $version = isset($request['version']) ? $request['version'] : null;
 $private = function ($method, array $args = []) use ($finder) {
 	return \Closure::bind(
@@ -155,9 +181,25 @@ switch ($request['call'])
 		$result = (array) $private('analyzePHPVersion', [$request['arg']]);
 		break;
 
+	case 'exec':
+		$result = $run($request['arg']);
+		break;
+
 	case 'facts':
 		$result = [
 			'systemDrive'  => getenv('SYSTEMDRIVE'),
+			'systemRoot'   => getenv('SystemRoot'),
+			'tools'        => array_map(
+				function ($tool) {
+					return is_file(getenv('SystemRoot') . '\\' . $tool);
+				},
+				[
+					'where'      => 'System32\\where.exe',
+					'wmic'       => 'System32\\wbem\\WMIC.exe',
+					'fsutil'     => 'System32\\fsutil.exe',
+					'powershell' => 'System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+				]
+			),
 			'path'         => getenv('PATH'),
 			'wmicPath'     => trim((string) @exec('where wmic 2>NUL')),
 			'wmic'         => $run('wmic logicaldisk get name'),
@@ -188,5 +230,11 @@ echo json_encode(
 		'runnerVersion' => PHP_VERSION,
 		'sapi'          => PHP_SAPI,
 		'phpBinary'     => PHP_BINARY,
+		'ran'           => array_map(
+			function ($marker) {
+				return strtolower(basename($marker, '.ran'));
+			},
+			glob($markerDir . '\\*.ran') ?: []
+		),
 	]
 );

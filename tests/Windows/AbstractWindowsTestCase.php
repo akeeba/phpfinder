@@ -31,8 +31,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const PATH_SYSTEM = 'C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;'
 		. 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\;C:\\Windows\\System32\\OpenSSH\\';
 
-	/** The same, without wmic's directory: a Windows on which wmic has been removed (Windows 11 24H2, Server 2025). */
-	protected const PATH_NO_WMIC = 'C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\';
+	/** A PATH with nothing in it, not even Windows' own directories. */
+	protected const EMPTY_PATH = 'C:\\pf\\fake\\empty';
 
 	// The fixtures, see guest/provision.ps1.
 	protected const COMMON_ROOT_84       = 'C:\\PHP\\php.exe';
@@ -59,12 +59,19 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const ODD_85               = self::ODD_DIR . '\\php.exe';
 	protected const ODD_DEFINED_VAR_DIR  = 'C:\\pf\\odd %OS%';
 	protected const ODD_DEFINED_VAR_85   = self::ODD_DEFINED_VAR_DIR . '\\php.exe';
-	protected const FAKE_WMIC_NONE       = 'C:\\pf\\fake\\wmic-none';
-	protected const FAKE_WMIC_ERROR      = 'C:\\pf\\fake\\wmic-error';
-	protected const FAKE_FSUTIL_ERROR    = 'C:\\pf\\fake\\fsutil-error';
-	protected const FAKE_POWERSHELL_ERROR = 'C:\\pf\\fake\\powershell-error';
-	protected const EMPTY_DIR            = 'C:\\pf\\fake\\empty';
 	protected const BROKEN_EXE           = 'C:\\pf\\fake\\broken\\php.exe';
+
+	// Windows directories with stand-ins for misbehaving tools (see guest/provision.ps1), for $windowsDirectory.
+	protected const WIN_WMIC_NONE    = 'C:\\pf\\fakewin\\wmic-none';
+	protected const WIN_WMIC_ERROR   = 'C:\\pf\\fakewin\\wmic-error';
+	protected const WIN_FSUTIL_ERROR = 'C:\\pf\\fakewin\\fsutil-error';
+	protected const WIN_ALL_FAIL     = 'C:\\pf\\fakewin\\all-fail';
+	protected const WIN_EMPTY        = 'C:\\pf\\fakewin\\empty';
+
+	/** A working directory with stand-ins for where, wmic, fsutil and PowerShell, which leave a <name>.ran file. */
+	protected const PLANTED_DIR     = 'C:\\pf\\planted';
+	/** The same, with a stand-in for cmd.exe. */
+	protected const PLANTED_CMD_DIR = 'C:\\pf\\planted-cmd';
 
 	/** Every drive of the guest: the system drive, the VHD provision.ps1 attaches, and the (empty) CD drive. */
 	protected const ALL_DRIVES = ['C:', 'D:', 'E:'];
@@ -126,23 +133,25 @@ abstract class AbstractWindowsTestCase extends TestCase
 	 * @param   array        $env      More environment variables to set, e.g. ['plesk_dir' => '…']
 	 * @param   string|null  $arg      The binary to analyse (analyze only)
 	 * @param   string|null  $cwd      The working directory; NULL keeps the relay's empty C:\pf\work (IIS: the site's)
+	 * @param   array        $options  windowsDirectory: PHPFinder's private $windowsDirectory
 	 *
-	 * @return  array  The probe's response (result, diagnostics, runner, runnerVersion, sapi, phpBinary), plus the
-	 *                 probe's STDERR as `stderr`
+	 * @return  array  The probe's response (result, diagnostics, runner, runnerVersion, sapi, phpBinary, ran), plus
+	 *                 the probe's STDERR as `stderr`
 	 */
 	protected function probe(
 		string $call, ?string $version, array $config = [], ?string $path = null, array $env = [], ?string $arg = null,
-		?string $cwd = null
+		?string $cwd = null, array $options = []
 	): array
 	{
 		$request = base64_encode(json_encode([
-			'call'    => $call,
-			'version' => $version,
-			'config'  => (object) $config,
-			'path'    => $path,
-			'env'     => (object) $env,
-			'arg'     => $arg,
-			'cwd'     => $cwd,
+			'call'             => $call,
+			'version'          => $version,
+			'config'           => (object) $config,
+			'path'             => $path,
+			'env'              => (object) $env,
+			'arg'              => $arg,
+			'cwd'              => $cwd,
+			'windowsDirectory' => $options['windowsDirectory'] ?? null,
 		]));
 
 		$answer   = self::relayRequest(['runner' => self::runnerName(), 'request' => $request]);
@@ -157,6 +166,20 @@ abstract class AbstractWindowsTestCase extends TestCase
 		$response['stderr'] = $answer['stderr'];
 
 		return $response;
+	}
+
+	/**
+	 * Hide (rename) or restore Windows' own wmic and/or fsutil in the guest, for real, e.g. ['wmic' => true].
+	 * Every test which hides one restores it in tearDown(): the VM is shared by every test and runner of the run.
+	 */
+	protected static function hideTools(array $hidden): void
+	{
+		$answer = self::relayRequest(['hidden' => (object) $hidden]);
+
+		if ($answer['status'] !== 0)
+		{
+			self::fail('Could not hide or restore ' . implode(', ', array_keys($hidden)) . ': ' . $answer['stderr']);
+		}
 	}
 
 	/**

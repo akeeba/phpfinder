@@ -85,17 +85,41 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\odd %PF_UNDEFINED% & (x) !bang ^caret\php.exe` | 8.5 | running a path with the characters `cmd.exe` treats specially |
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program |
-| `C:\pf\fake\*\wmic.bat`, `fsutil.bat`, `powershell.bat` | none | tools which exist but fail (see `DrivesTest`) |
-
-PHPFinder checks that a tool exists by looking for `<name>.exe` in the `PATH` (PHP's `is_executable()` is FALSE for a
-`.bat` file), and runs it by name through `cmd.exe`, which runs the first `<name>.bat` or `<name>.exe` in the `PATH`. So a
-`.bat` stand-in before the system directories in the `PATH` replaces a tool which really exists. A Windows without
-`wmic` (Windows 11 24H2, Windows Server 2025) is a `PATH` without `C:\Windows\System32\Wbem`.
 
 Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian
 editions alike) lists `%plesk_dir%Additional\PHP<XY>\php.exe` for PHP 5.3 to 7.0; Plesk Obsidian installs
 `%plesk_dir%Additional\PleskPHP<XY>\php.exe` (e.g. `PleskPHP81`, `PleskPHP83`: Plesk's support articles and staff
 answers on its forum), and Plesk 12 already used `PleskPHP54`. Neither has a dot. There is no real Plesk in the guest.
+
+### Stand-ins for Windows' tools
+
+PHPFinder runs `where`, `wmic`, `fsutil` and PowerShell from the Windows directory (`SystemRoot`), by their full paths:
+`System32\where.exe`, `System32\wbem\WMIC.exe`, `System32\fsutil.exe`,
+`System32\WindowsPowerShell\v1.0\powershell.exe`, through `System32\cmd.exe /d /s /c` (see "What the real Windows
+prints" for why). The `PATH` does not matter to them, so the tests change what runs in two ways:
+
+- **A Windows without `wmic`** (Windows 11 24H2, Windows Server 2025), or without `fsutil`, is the real one with
+  `WMIC.exe` or `fsutil.exe` renamed for the duration of a test: `hideTools()` asks `relay.php`, which runs as
+  Administrator, to rename them (`provision.ps1` takes them over from TrustedInstaller first), and every such test puts
+  them back in `tearDown()`. The next start of the VM restores its snapshot anyway.
+- **Tools which misbehave** are stand-ins in a Windows directory of their own, `C:\pf\fakewin\<case>`, which the test
+  gives to the library instead of `C:\Windows`, through PHPFinder's private `$windowsDirectory` (the probe sets it,
+  as the unit tests do), with a copy of Windows' own `cmd.exe` in its `System32`. Not through `SystemRoot`: the
+  programs the library starts need the real one.
+
+The stand-ins are one small program, `C:\pf\fake\fake-tool.exe`, which `provision.ps1` compiles with .NET Framework's
+C# compiler (`Add-Type -OutputType ConsoleApplication`) and copies under each tool's name. It prints the bytes of
+`<name>.stdout` next to it, exits with the number in `<name>.exitcode` (or 0), and appends its command line to
+`<name>.ran`, so that a test can tell it ran (the probe returns the `.ran` files of its working directory as `ran`):
+
+| Directory | Stand-ins | Used by |
+|---|---|---|
+| `C:\pf\fakewin\wmic-none` | a `wmic` which lists no drive, an `fsutil` which lists them | `DrivesTest` |
+| `C:\pf\fakewin\wmic-error` | a `wmic` which prints an error on STDOUT, an `fsutil` which lists the drives | `DrivesTest` |
+| `C:\pf\fakewin\fsutil-error` | no `wmic`, an `fsutil` which prints an error, a PowerShell which lists the drives | `DrivesTest` |
+| `C:\pf\fakewin\all-fail`, `C:\pf\fakewin\empty` | every tool failing; no tool at all | `DrivesTest` |
+| `C:\pf\planted` | `where.exe`, `wmic.exe`, `fsutil.exe`, `powershell.exe`, printing nothing: a working directory | `WorkingDirectoryTest` |
+| `C:\pf\planted-cmd` | `cmd.exe`, printing nothing: a working directory | `WorkingDirectoryTest` |
 
 ## A second drive
 
@@ -118,6 +142,13 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
 - `where php` prints each match on its own line, `\r\n`, in `PATH` order, exit code 0. Without a match: nothing on
   STDOUT, `INFO: Could not find files for the given pattern(s).` on STDERR, exit code 1. It searches the current
   directory before the `PATH`.
+- `cmd.exe` looks a bare command name (`where`, `wmic`, …) up in the current directory before the `PATH`, and PHP's
+  `exec()` starts `cmd.exe` itself by its bare name, which Windows also looks for in the current directory first: a
+  `cmd.exe` in the working directory runs instead of Windows' own (`WorkingDirectoryTest`).
+- Under IIS (FastCGI, impersonating the site's user), a program which PHP's `proc_open()` starts directly
+  (`bypass_shell`) may not open its own process: PowerShell fails with `Internal Windows PowerShell error. Loading
+  managed Windows PowerShell failed with error 80070005.`, `whoami` with `ERROR: Access is denied.`, while `where`,
+  `wmic`, `fsutil` and `php.exe -v` work. Started by `cmd.exe`, all of them work. Hence `cmd.exe` for the tools.
 - PowerShell's `[IO.DriveInfo]::GetDrives()` takes 1.5 to 2 seconds to start.
 
 ## The PHP versions, and why
@@ -139,5 +170,5 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 ## Not covered
 
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
-- Windows 11 and Windows Server 2025 themselves: their missing `wmic` is simulated through the `PATH`.
+- Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed.
 - A server whose system drive is not `C:`.

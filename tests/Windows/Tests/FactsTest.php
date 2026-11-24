@@ -31,6 +31,16 @@ final class FactsTest extends AbstractWindowsTestCase
 		return self::$facts;
 	}
 
+	public function testWindowsToolsAreWherePHPFinderRunsThemFrom(): void
+	{
+		// PHPFinder runs them by these full paths, in the Windows directory (SystemRoot).
+		$this->assertSame('C:\\Windows', $this->facts()['systemRoot']);
+		$this->assertSame(
+			['where' => true, 'wmic' => true, 'fsutil' => true, 'powershell' => true],
+			$this->facts()['tools']
+		);
+	}
+
 	public function testWmicIsInTheSystemPath(): void
 	{
 		$this->assertSame('c:\\windows\\system32\\wbem\\wmic.exe', strtolower($this->facts()['wmicPath']));

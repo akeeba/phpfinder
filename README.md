@@ -27,6 +27,8 @@ The environments currently supported are:
 
 **Security note**. Unless you disable the validation options, this library _executes_ every candidate binary it finds (with `-v`) to check its version and that it is the PHP CLI. That includes binaries found in well-known directories which may be writable by other users, e.g. `d:\PHP` or `d:\PHP8.3` on any Windows drive, `C:\PHP`, or the Program Files directories. On a server where untrusted users can create files in those locations, disable the `usePHPCommonWinDirsSearch` option (on UNIX-like systems, the `useFixedPaths` option, which searches `/usr/bin`, `/usr/local/bin` and `/opt/bin`; and keep `osSpecific` and `softwareSpecific` off if you do not need them), or make sure only administrators can write there.
 
+**Windows**. The library runs Windows' own tools (`where`, `wmic`, `fsutil`, PowerShell) by their full paths in the Windows directory (`%SystemRoot%`), through Windows' own `cmd.exe`, and each candidate PHP binary directly with `proc_open()`: never anything by its bare name, which Windows would look for in the current directory (under IIS, the script's directory) first. Where `proc_open()` is disabled it falls back to `exec()`, which runs everything through `cmd.exe`: then a `cmd.exe` in the current directory would run instead of Windows' own, since PHP starts it by its bare name.
+
 You can try to locate a specific version of PHP (by `major.minor` or `major.minor.patch` version specification), or just any available PHP version.
 
 When looking for a specific version, the version reported by each PHP binary must match the one you asked for on whole version components, from the start: asking for `8.3` accepts PHP 8.3.0 or 8.3.12, but not PHP 8.30.0 or 7.8.3; asking for `8.3.1` accepts PHP 8.3.1 (or 8.3.1-dev), but not 8.3.10.
@@ -82,7 +84,7 @@ $php83Array  = $finder->getPossiblePaths('8.3');
 
 ## Caveats
 
-**Server hangs**. The default behaviour of this library is to run the executables discovered using `exec()` to validate that the version number returned by the executable is the expected, as well as validate that the binary is the PHP CLI (and not PHP CGI/FastCGI). This may cause some servers to abort execution, resulting in an HTTP 500 Internal Server Error status code or, worse, a blank page with an HTTP 200 OK status. You can prevent that by disabling these features in the configuration object:
+**Server hangs**. The default behaviour of this library is to run the executables discovered (with `exec()`, or `proc_open()` on Windows) to validate that the version number returned by the executable is the expected, as well as validate that the binary is the PHP CLI (and not PHP CGI/FastCGI). This may cause some servers to abort execution, resulting in an HTTP 500 Internal Server Error status code or, worse, a blank page with an HTTP 200 OK status. You can prevent that by disabling these features in the configuration object:
 
 ```php
 // Check the source comments of the Configuration class to understand what each setting does.

@@ -12,8 +12,10 @@ Docker integration suite. Both work on a fresh checkout, given a global `phpunit
 
 - **Unit** (`composer test:unit`, `phpunit.xml`, `tests/Unit/`): in-process, against fake PHP binaries
   (shell scripts printing `PHP x.y.z (cli)`) and fake `whereis` / `update-alternatives` / `brew` in a
-  temporary directory put first in the `PATH`. Private candidate builders are called through a bound
-  closure. No Docker.
+  temporary directory put first in the `PATH`. Windows' tools (`where`, `wmic`, `fsutil`, PowerShell) run by their
+  full paths in the Windows directory, never from the `PATH`: their fakes go in a fake one (`windowsTool()`), which
+  `simulateOs()` gives the library through its private `$windowsDirectory`. Private candidate builders are called
+  through a bound closure. No Docker.
 - **Integration** (`composer test:integration` = `tests/Integration/docker/run.sh`,
   `phpunit-integration.xml`, `tests/Integration/`): PHPUnit on the host drives the library inside a
   throwaway container on the shared `akeeba-e2e/php` image, which holds several real PHP CLIs at the

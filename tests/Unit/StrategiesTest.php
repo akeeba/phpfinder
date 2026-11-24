@@ -9,6 +9,7 @@
 
 namespace Akeeba\PHPFinder\Tests\Unit;
 
+use Akeeba\PHPFinder\PHPFinder;
 use Akeeba\PHPFinder\Tests\Support\FakeSystem;
 use Akeeba\PHPFinder\Tests\Support\KnownBug;
 use PHPUnit\Framework\TestCase;
@@ -168,7 +169,7 @@ final class StrategiesTest extends TestCase
 		// Like Windows' `where`: every match on its own line, CRLF line endings; for no match an INFO line on
 		// STDERR and exit code 1. Only answers `where $PATH:<name>`: a bare name also searches the current directory.
 		$this->fakeExecutable(
-			'bin/where',
+			self::windowsTool('where'),
 			"echo \"\$*\" >> '" . $this->root() . "/where.log'\n"
 			. "case \"\$1\" in\n"
 			. "  '\$PATH:php') printf '%s\\r\\n' '" . $first . "' '" . $second . "' ;;\n"
@@ -199,11 +200,11 @@ final class StrategiesTest extends TestCase
 		// width with spaces, \r\r\n line endings, and a blank line at the end. exec() strips the trailing
 		// whitespace, \r included, from every line it puts in its output array, so no drive is padded.
 		$this->fakeExecutable(
-			'bin/wmic',
+			self::windowsTool('wmic'),
 			"[ \"\$*\" = 'logicaldisk get name' ] || exit 2\n"
 			. "printf 'Name  \\r\\r\\nC:    \\r\\r\\nD:    \\r\\r\\n\\r\\r\\n'\n"
 		);
-		$this->fakeExecutable('bin/fsutil', "echo \"\$*\" >> '" . $this->root() . "/fsutil.log'\nexit 1\n");
+		$this->fakeExecutable(self::windowsTool('fsutil'), "echo \"\$*\" >> '" . $this->root() . "/fsutil.log'\nexit 1\n");
 
 		[$drives, $diagnostics] = $this->withDiagnostics(function () {
 			return $this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives');
@@ -219,7 +220,7 @@ final class StrategiesTest extends TestCase
 		// No wmic (removed from recent Windows 11 releases): `fsutil fsinfo drives` prints a blank line, then
 		// "Drives: C:\ D:\ " on one line.
 		$this->fakeExecutable(
-			'bin/fsutil',
+			self::windowsTool('fsutil'),
 			"[ \"\$*\" = 'fsinfo drives' ] || exit 2\n"
 			. "printf '\\r\\nDrives: C:\\\\ D:\\\\ E:\\\\ \\r\\n'\n"
 		);
@@ -233,8 +234,8 @@ final class StrategiesTest extends TestCase
 	public function testWindowsDrivesFallBackWhenWmicListsNone(): void
 	{
 		// A wmic which runs, but lists no drive (or fails, e.g. with WMI broken).
-		$this->fakeExecutable('bin/wmic', "printf 'No Instance(s) Available.\\r\\r\\n'\n");
-		$this->fakeExecutable('bin/fsutil', "printf '\\r\\nDrives: C:\\\\ D:\\\\ \\r\\n'\n");
+		$this->fakeExecutable(self::windowsTool('wmic'), "printf 'No Instance(s) Available.\\r\\r\\n'\n");
+		$this->fakeExecutable(self::windowsTool('fsutil'), "printf '\\r\\nDrives: C:\\\\ D:\\\\ \\r\\n'\n");
 
 		$finder = $this->simulateOs($this->finder(), 'Windows');
 
@@ -246,9 +247,9 @@ final class StrategiesTest extends TestCase
 	{
 		// wmic, fsutil and PowerShell all exist; the first two print an error on STDOUT. Error lines used to be taken
 		// for drives: "ERROR:" (any wmic line with a colon), "Access", "is", "denied." (fsutil's words after "Error:").
-		$this->fakeExecutable('bin/wmic', "printf 'ERROR:\\r\\nDescription = Access denied.\\r\\n'\nexit 1\n");
-		$this->fakeExecutable('bin/fsutil', "printf 'Error:  Access is denied.\\r\\n'\nexit 1\n");
-		$this->fakeExecutable('bin/powershell', "printf 'C:\\\\\\r\\nE:\\\\\\r\\n'\n");
+		$this->fakeExecutable(self::windowsTool('wmic'), "printf 'ERROR:\\r\\nDescription = Access denied.\\r\\n'\nexit 1\n");
+		$this->fakeExecutable(self::windowsTool('fsutil'), "printf 'Error:  Access is denied.\\r\\n'\nexit 1\n");
+		$this->fakeExecutable(self::windowsTool('powershell'), "printf 'C:\\\\\\r\\nE:\\\\\\r\\n'\n");
 
 		$this->assertSame(
 			['C:', 'E:'],
@@ -260,7 +261,7 @@ final class StrategiesTest extends TestCase
 	{
 		// Neither wmic nor fsutil: PowerShell's [IO.DriveInfo]::GetDrives(), one "X:\" per line.
 		$this->fakeExecutable(
-			'bin/powershell',
+			self::windowsTool('powershell'),
 			"case \"\$*\" in *GetDrives*) ;; *) exit 2 ;; esac\n"
 			. "printf 'C:\\\\\\r\\nD:\\\\\\r\\n'\n"
 		);
@@ -279,11 +280,11 @@ final class StrategiesTest extends TestCase
 		try
 		{
 			// No tool lists any drive: only the system drive.
-			$this->fakeExecutable('bin/wmic', "printf '\\r\\r\\n\\r\\r\\n'\n");
+			$this->fakeExecutable(self::windowsTool('wmic'), "printf '\\r\\r\\n\\r\\r\\n'\n");
 			$this->assertSame(['Q:'], $this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives'));
 
 			// The tools do not list the system drive: it comes first.
-			$this->fakeExecutable('bin/wmic', "printf 'Name  \\r\\r\\nC:    \\r\\r\\nD:    \\r\\r\\n'\n");
+			$this->fakeExecutable(self::windowsTool('wmic'), "printf 'Name  \\r\\r\\nC:    \\r\\r\\nD:    \\r\\r\\n'\n");
 			$this->assertSame(
 				['Q:', 'C:', 'D:'],
 				$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
@@ -299,7 +300,7 @@ final class StrategiesTest extends TestCase
 
 		try
 		{
-			$this->fakeExecutable('bin/wmic', "printf 'Name  \\r\\r\\nD:    \\r\\r\\n'\n");
+			$this->fakeExecutable(self::windowsTool('wmic'), "printf 'Name  \\r\\r\\nD:    \\r\\r\\n'\n");
 			$this->assertSame(
 				['C:', 'D:'],
 				$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
@@ -308,6 +309,83 @@ final class StrategiesTest extends TestCase
 		finally
 		{
 			putenv($savedSystemDrive === false ? 'SYSTEMDRIVE' : ('SYSTEMDRIVE=' . $savedSystemDrive));
+		}
+	}
+
+	public function testWindowsToolsRunFromTheWindowsDirectoryOnly(): void
+	{
+		// Stand-ins for where, wmic, fsutil and PowerShell in the PATH, each logging that it ran. The library used to
+		// run the tools by their bare names, through the shell: on Windows, cmd.exe looks for those in the current
+		// directory first, then in the PATH, so a where.exe in the application's working directory ran.
+		foreach (['where', 'wmic', 'fsutil', 'powershell'] as $tool)
+		{
+			$this->fakeExecutable('bin/' . $tool, "echo \"\$*\" >> '" . $this->root() . "/path-tools.log'\nprintf 'Z:\\r\\n'\n");
+		}
+
+		$php = $this->fakePhp('w/php.exe', '5.9.1');
+
+		// The real ones, in the Windows directory.
+		$this->fakeExecutable(self::windowsTool('where'), "case \"\$1\" in '\$PATH:php') printf '%s\\r\\n' '" . $php . "' ;; *) exit 1 ;; esac\n");
+		$this->fakeExecutable(self::windowsTool('fsutil'), "printf '\\r\\nDrives: C:\\\\ D:\\\\ \\r\\n'\n");
+
+		$finder = $this->simulateOs($this->finder(['useWhere' => true]), 'Windows');
+
+		$this->assertSame([$php], $this->callPrivate($finder, 'pathsUsingWhere', ['5.9']));
+		$this->assertSame(['C:', 'D:'], $this->callPrivate($finder, 'getWindowsDrives'));
+		$this->assertFalse(
+			is_file($this->root() . '/path-tools.log'),
+			'A tool in the PATH ran: ' . @file_get_contents($this->root() . '/path-tools.log')
+		);
+	}
+
+	public function testWindowsToolsAreNotRunWhenTheyAreMissing(): void
+	{
+		// No tool in the Windows directory: nothing runs, not even what the PATH has under the same names.
+		foreach (['where', 'wmic', 'fsutil', 'powershell'] as $tool)
+		{
+			$this->fakeExecutable('bin/' . $tool, "echo \"\$*\" >> '" . $this->root() . "/path-tools.log'\nprintf 'Z:\\r\\n'\n");
+		}
+
+		$finder = $this->simulateOs($this->finder(['useWhere' => true]), 'Windows');
+
+		$this->assertSame([], $this->callPrivate($finder, 'pathsUsingWhere', ['5.9']));
+		$this->assertSame([(string) (getenv('SYSTEMDRIVE') ?: 'C:')], $this->callPrivate($finder, 'getWindowsDrives'));
+		$this->assertFalse(is_file($this->root() . '/path-tools.log'), 'A tool in the PATH ran');
+	}
+
+	public function testTheWindowsDirectory(): void
+	{
+		$saved = [];
+
+		foreach (['SYSTEMROOT', 'WINDIR'] as $variable)
+		{
+			$saved[$variable] = getenv($variable);
+		}
+
+		$directory = function (?string $systemRoot, ?string $windir): string {
+			putenv($systemRoot === null ? 'SYSTEMROOT' : ('SYSTEMROOT=' . $systemRoot));
+			putenv($windir === null ? 'WINDIR' : ('WINDIR=' . $windir));
+
+			return $this->callPrivate(new PHPFinder(), 'getWindowsDirectory');
+		};
+
+		try
+		{
+			$this->assertSame('D:\\WINNT', $directory('D:\\WINNT', 'C:\\Windows'));
+			$this->assertSame('C:\\Windows', $directory('C:\\Windows\\', null));
+			$this->assertSame('E:\\Windows', $directory(null, 'E:\\Windows'));
+			// Never a relative path, nor a bare drive: those would be looked for in the current directory.
+			$this->assertSame('E:\\Windows', $directory('Windows', 'E:\\Windows'));
+			$this->assertSame('C:\\Windows', $directory('Windows', 'C:'));
+			$this->assertSame('C:\\Windows', $directory('\\Windows', null));
+			$this->assertSame('C:\\Windows', $directory(null, null));
+		}
+		finally
+		{
+			foreach ($saved as $variable => $value)
+			{
+				putenv($value === false ? $variable : ($variable . '=' . $value));
+			}
 		}
 	}
 

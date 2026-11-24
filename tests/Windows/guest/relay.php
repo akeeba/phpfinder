@@ -16,6 +16,10 @@
  *
  *   {"runner": "8.5" | "iis", "request": "<base64 of probe.php's JSON request>"}
  *
+ * {"hidden": {"wmic": true, "fsutil": false}} hides (renames) or restores Windows' own WMIC.exe and fsutil.exe, for
+ * the tests of a Windows without them (provision.ps1 made them renamable; the VM's snapshot restores them anyway).
+ * It answers {"status": 0, "stdout": "", "stderr": ""}, or a status of 1 and the error.
+ *
  * For a PHP version, the relay runs C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request> in a new process, without
  * a shell (so nothing is re-quoted on the way), in the empty directory C:\pf\work (`where` looks in the current
  * directory first). For "iis", it requests http://localhost/pf-probe.php?r=<request>: IIS runs the probe.
@@ -41,6 +45,15 @@ while (($line = fgets($stdin)) !== false)
 	}
 
 	$message = json_decode($line, true);
+
+	if (is_array($message) && isset($message['hidden']))
+	{
+		fwrite($stdout, json_encode(hideTools((array) $message['hidden'])) . "\n");
+		fflush($stdout);
+
+		continue;
+	}
+
 	$runner  = is_array($message) ? (string) ($message['runner'] ?? '') : '';
 	$request = is_array($message) ? (string) ($message['request'] ?? '') : '';
 
@@ -83,4 +96,40 @@ while (($line = fgets($stdin)) !== false)
 
 	fwrite($stdout, json_encode($answer) . "\n");
 	fflush($stdout);
+}
+
+/**
+ * Hide (rename to <name>.pf-hidden) or restore Windows' own wmic and fsutil.
+ *
+ * @param   bool[]  $hidden  wmic and/or fsutil => whether it is to be hidden
+ */
+function hideTools(array $hidden): array
+{
+	$tools = ['wmic' => 'C:\\Windows\\System32\\wbem\\WMIC.exe', 'fsutil' => 'C:\\Windows\\System32\\fsutil.exe'];
+
+	foreach ($hidden as $tool => $hide)
+	{
+		if (!isset($tools[$tool]))
+		{
+			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: unknown tool ' . $tool];
+		}
+
+		[$from, $to] = $hide ? [$tools[$tool], $tools[$tool] . '.pf-hidden'] : [$tools[$tool] . '.pf-hidden', $tools[$tool]];
+
+		clearstatcache();
+
+		if (is_file($from) && !@rename($from, $to))
+		{
+			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not rename ' . $from . ': ' . (error_get_last()['message'] ?? '')];
+		}
+
+		clearstatcache();
+
+		if (is_file($tools[$tool]) === (bool) $hide)
+		{
+			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: ' . $tools[$tool] . ($hide ? ' is still there' : ' is missing')];
+		}
+	}
+
+	return ['status' => 0, 'stdout' => '', 'stderr' => ''];
 }

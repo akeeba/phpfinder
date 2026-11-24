@@ -37,6 +37,18 @@ final class PHPFinder
 	private $osFamily = null;
 
 	/**
+	 * The Windows directory to run Windows' own tools from, instead of the one the environment names. NULL (always,
+	 * outside the tests) uses getWindowsDirectory()'s lookup.
+	 *
+	 * Private, and never set by the library itself: the tests set it through a bound closure, to run stand-ins for
+	 * `where`, `wmic`, `fsutil` and PowerShell without changing the SystemRoot the programs they run need.
+	 *
+	 * @var    string|null
+	 * @since  1.0.2
+	 */
+	private $windowsDirectory = null;
+
+	/**
 	 * The Windows drives, once getWindowsDrives() has looked them up for this object.
 	 *
 	 * @var    string[]|null
@@ -432,7 +444,10 @@ final class PHPFinder
 			return [];
 		}
 
-		if (!function_exists('exec') || !$this->executableExists('where'))
+		// Windows' own where.exe, by its full path: a bare `where` would be looked for in the current directory first.
+		$where = $this->getWindowsToolPath('System32\\where.exe');
+
+		if ($where === null)
 		{
 			return [];
 		}
@@ -442,16 +457,13 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			// exec() returns only the last line, and appends to $output: start afresh for each name. `where` prints
-			// "INFO: Could not find files for the given pattern(s)." on STDERR for every name it does not find.
-			// `$PATH:` restricts the search to the PATH: a bare name is looked for in the current directory first, so
-			// any php.exe in the application's working directory would be found, and run.
-			$output = [];
-			$where  = @exec(
-				'where ' . escapeshellarg('$PATH:' . $executable) . ' 2>' . $this->getNullDevice(), $output, $resultCode
-			);
+			// `$PATH:` restricts the search to the PATH: for a bare name, `where` looks in the current directory first,
+			// so any php.exe in the application's working directory would be found, and run. `where` prints "INFO:
+			// Could not find files for the given pattern(s)." on STDERR, and exits with 1, for every name it does
+			// not find.
+			$output = $this->runProgram($where, escapeshellarg('$PATH:' . $executable), $resultCode, true);
 
-			if ($where === false || $resultCode !== 0)
+			if ($output === null || $resultCode !== 0)
 			{
 				continue;
 			}
@@ -1024,6 +1036,8 @@ final class PHPFinder
 	 * with "Access is denied.") counts as failed, and the next one is tried; only drive letters count, never an error
 	 * message. The system drive (%SYSTEMDRIVE%, or C:) is always in the list, first when no tool listed it.
 	 *
+	 * Each tool runs from the Windows directory, by its full path (see getWindowsToolPath()), and only if it is there.
+	 *
 	 * @return  string[]
 	 * @since   1.0.0
 	 */
@@ -1036,33 +1050,28 @@ final class PHPFinder
 
 		$drives = [];
 
-		if (function_exists('exec'))
+		// Windows' own tools, by their full paths: a bare name would be looked for in the current directory first.
+		$commands = [
+			'System32\\wbem\\WMIC.exe'                          => 'logicaldisk get name',
+			'System32\\fsutil.exe'                              => 'fsinfo drives',
+			'System32\\WindowsPowerShell\\v1.0\\powershell.exe' => '-NoProfile -NonInteractive -Command '
+			                                                       . escapeshellarg('[IO.DriveInfo]::GetDrives() | ForEach-Object { $_.Name }'),
+		];
+
+		foreach ($commands as $tool => $arguments)
 		{
-			$commands = [
-				'wmic'       => 'wmic logicaldisk get name',
-				'fsutil'     => 'fsutil fsinfo drives',
-				'powershell' => 'powershell -NoProfile -NonInteractive -Command '
-				                . '"[IO.DriveInfo]::GetDrives() | ForEach-Object { $_.Name }"',
-			];
+			$executable = $this->getWindowsToolPath($tool);
 
-			foreach ($commands as $executable => $command)
+			if ($executable === null)
 			{
-				if (!$this->executableExists($executable))
-				{
-					continue;
-				}
+				continue;
+			}
 
-				$output = [];
+			$drives = $this->parseWindowsDrives($this->runProgram($executable, $arguments, $exitCode, true) ?? []);
 
-				// Their errors go to STDERR, which would otherwise end up in the console of a CLI application.
-				@exec($command . ' 2>' . $this->getNullDevice(), $output);
-
-				$drives = $this->parseWindowsDrives($output);
-
-				if (!empty($drives))
-				{
-					break;
-				}
+			if (!empty($drives))
+			{
+				break;
 			}
 		}
 
@@ -1119,6 +1128,52 @@ final class PHPFinder
 	private function getNullDevice(): string
 	{
 		return strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'NUL' : '/dev/null';
+	}
+
+	/**
+	 * The Windows directory, e.g. C:\Windows, without a trailing backslash.
+	 *
+	 * The SystemRoot environment variable (or windir), when it is an absolute path; otherwise C:\Windows. Never a
+	 * relative path: Windows' tools run from here by their full paths, so that no program of the same name in the
+	 * current directory runs instead.
+	 *
+	 * @return  string
+	 * @since   1.0.2
+	 */
+	private function getWindowsDirectory(): string
+	{
+		if ($this->windowsDirectory !== null)
+		{
+			return $this->windowsDirectory;
+		}
+
+		foreach (['SYSTEMROOT', 'WINDIR'] as $variable)
+		{
+			$directory = (string) @getenv($variable);
+
+			if (preg_match('/^[A-Za-z]:[\\\\\/]./', $directory))
+			{
+				return rtrim($directory, '\\/');
+			}
+		}
+
+		return 'C:\\Windows';
+	}
+
+	/**
+	 * The full path to one of Windows' own programs, if it exists.
+	 *
+	 * @param   string  $relativePath  Its path in the Windows directory, e.g. System32\where.exe
+	 *
+	 * @return  string|null  NULL when there is no such file
+	 * @since   1.0.2
+	 */
+	private function getWindowsToolPath(string $relativePath): ?string
+	{
+		$path = rtrim($this->getWindowsDirectory(), '\\/') . DIRECTORY_SEPARATOR
+		        . str_replace('\\', DIRECTORY_SEPARATOR, $relativePath);
+
+		return @is_file($path) ? $path : null;
 	}
 
 	/**
@@ -1237,12 +1292,6 @@ final class PHPFinder
 	/**
 	 * Run `<binary> -v` and return the lines of its output, without their trailing whitespace, as exec() returns them.
 	 *
-	 * On Windows, proc_open() runs the binary directly (bypass_shell), not through cmd.exe: cmd.exe expands %NAME% in
-	 * a command line even between double quotes when NAME is a defined environment variable, so C:\odd %OS%\php.exe
-	 * would run C:\odd Windows_NT\php.exe instead, and that cannot be escaped on a cmd.exe command line. This depends
-	 * on the OS PHP really runs on, like getNullDevice(). Where proc_open() is disabled, exec() runs it through the
-	 * shell, with that limitation on Windows.
-	 *
 	 * @param   string  $path  The path to the binary.
 	 *
 	 * @return  string[]|null  NULL when it could not be run.
@@ -1250,10 +1299,62 @@ final class PHPFinder
 	 */
 	private function runVersionCommand(string $path): ?array
 	{
-		$command = $this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v';
+		return $this->runProgram($path, '-v');
+	}
 
-		if (strtoupper(PHP_OS_FAMILY) === 'WINDOWS' && function_exists('proc_open'))
+	/**
+	 * Run a program, given by its full path, and return the lines of its output, without their trailing whitespace,
+	 * as exec() returns them. What it prints on STDERR is discarded: it would end up in the console of a CLI
+	 * application.
+	 *
+	 * On Windows, proc_open() runs the program directly (bypass_shell), not through PHP's own choice of cmd.exe:
+	 *
+	 * - cmd.exe expands %NAME% in a command line even between double quotes when NAME is a defined environment
+	 *   variable, so C:\odd %OS%\php.exe would run C:\odd Windows_NT\php.exe instead, and that cannot be escaped on a
+	 *   cmd.exe command line;
+	 * - PHP starts cmd.exe by its bare name, which Windows looks for in the current directory before the system
+	 *   directory, so a cmd.exe in the application's working directory would run instead.
+	 *
+	 * With $throughCmd, the program runs through Windows' own cmd.exe, by its full path. This is for Windows' own tools,
+	 * whose paths have no %: under IIS, with FastCGI impersonation, a program which PHP starts directly may not open
+	 * its own process (PowerShell fails with "Loading managed Windows PowerShell failed with error 80070005", whoami
+	 * with "Access is denied"), while one which cmd.exe starts can.
+	 *
+	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe, with those limitations. This depends
+	 * on the OS PHP really runs on, like getNullDevice().
+	 *
+	 * @param   string    $executable  The full path to the program.
+	 * @param   string    $arguments   Its arguments, quoted for its command line.
+	 * @param   int|null  $exitCode    Its exit code, when it ran.
+	 * @param   bool      $throughCmd  On Windows, run it through Windows' own cmd.exe.
+	 *
+	 * @return  string[]|null  NULL when it could not be run.
+	 * @since   1.0.2
+	 */
+	private function runProgram(
+		string $executable, string $arguments, ?int &$exitCode = null, bool $throughCmd = false
+	): ?array
+	{
+		$exitCode  = null;
+		$isWindows = strtoupper(PHP_OS_FAMILY) === 'WINDOWS';
+		$procOpen  = $isWindows && function_exists('proc_open');
+		$command   = $this->quoteExecutablePath($executable, PHP_OS_FAMILY) . ($arguments === '' ? '' : (' ' . $arguments));
+
+		if ($procOpen)
 		{
+			if ($throughCmd)
+			{
+				$cmd = $this->getWindowsToolPath('System32\\cmd.exe');
+
+				if ($cmd === null)
+				{
+					return null;
+				}
+
+				// /d: without the AutoRun commands of the registry. /s /c "…": the rest, without its outer quotes.
+				$command = $this->quoteExecutablePath($cmd, PHP_OS_FAMILY) . ' /d /s /c "' . $command . '"';
+			}
+
 			$pipes   = [];
 			$process = @proc_open(
 				$command,
@@ -1264,15 +1365,17 @@ final class PHPFinder
 				['bypass_shell' => true]
 			);
 
-			if (is_resource($process))
+			if (!is_resource($process))
 			{
-				$stdout = (string) @stream_get_contents($pipes[1]);
-
-				@fclose($pipes[1]);
-				@proc_close($process);
-
-				return array_map('rtrim', preg_split('/\r?\n/', rtrim($stdout)));
+				return null;
 			}
+
+			$stdout = (string) @stream_get_contents($pipes[1]);
+
+			@fclose($pipes[1]);
+			$exitCode = @proc_close($process);
+
+			return array_map('rtrim', preg_split('/\r?\n/', rtrim($stdout)));
 		}
 
 		if (!function_exists('exec'))
@@ -1282,8 +1385,14 @@ final class PHPFinder
 
 		$output = [];
 
-		// What a binary which cannot run prints on STDERR would end up in the console of a CLI application.
-		return @exec($command . ' 2>' . $this->getNullDevice(), $output) === false ? null : $output;
+		if (@exec($command . ' 2>' . $this->getNullDevice(), $output, $resultCode) === false)
+		{
+			return null;
+		}
+
+		$exitCode = $resultCode;
+
+		return $output;
 	}
 
 	/**
@@ -1294,7 +1403,8 @@ final class PHPFinder
 	 * by the C runtime's rules, for which plain double quotes are enough. Through exec(), PHP runs commands with
 	 * `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"` (PHP 8), both of which strip the outer pair of
 	 * quotes and run the rest verbatim, so plain double quotes work there too, save for a %NAME% of a defined
-	 * environment variable, which cmd.exe expands. escapeshellarg() is not used because it turns the %, ! and "
+	 * environment variable, which cmd.exe expands.
+	 * escapeshellarg() is not used because it turns the %, ! and "
 	 * characters into spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned
 	 * into a space, as escapeshellarg() does, so that it can never end the quoted string early.
 	 *

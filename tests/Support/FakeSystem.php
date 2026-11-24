@@ -202,7 +202,32 @@ trait FakeSystem
 	{
 		$this->setPrivate($finder, 'osFamily', $osFamily);
 
+		// Windows' own tools run from the Windows directory: the fake one, ROOT/Windows (see windowsTool()). Only on
+		// a library which has that property (not on an older src/ given through PHPFINDER_SRC).
+		if (strtoupper($osFamily) === 'WINDOWS' && property_exists($finder, 'windowsDirectory'))
+		{
+			$this->setPrivate($finder, 'windowsDirectory', $this->fakeRoot . '/Windows');
+		}
+
 		return $finder;
+	}
+
+	/**
+	 * Where a fake of one of Windows' own tools goes, relative to the fake root: in the fake Windows directory, at
+	 * the path the library runs it from, e.g. Windows/System32/where.exe.
+	 *
+	 * @param   string  $tool  where, wmic, fsutil or powershell
+	 */
+	protected static function windowsTool(string $tool): string
+	{
+		$paths = [
+			'where'      => 'Windows/System32/where.exe',
+			'wmic'       => 'Windows/System32/wbem/WMIC.exe',
+			'fsutil'     => 'Windows/System32/fsutil.exe',
+			'powershell' => 'Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+		];
+
+		return $paths[$tool];
 	}
 
 	/**
