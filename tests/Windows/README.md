@@ -182,8 +182,25 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
   `System32\cmd.exe /d /s /c`, PowerShell and `whoami` work too (`whoami` prints `iis apppool\defaultapppool`). With
   `fastcgi.impersonate=0` both work either way: the impersonation is what triggers the failure. This was checked by
   hand, not by `FactsTest`: the same script under IIS, `fastcgi.impersonate` switched from 1 to 0 and back, with
-  `iisreset` in between, failed at 1 both times and worked at 0. Why going through `cmd.exe` avoids the failure was not
-  investigated. Hence `cmd.exe` for the tools.
+  `iisreset` in between, failed at 1 both times and worked at 0. Hence `cmd.exe` for the tools.
+
+  Why, also checked by hand (the security descriptors read as SYSTEM, from a scheduled task, while the children ran):
+  `proc_open()` calls `CreateProcessW()` (`ext/standard/proc_open.c`) from the FastCGI thread, which impersonates the
+  site's anonymous user, `IUSR`. The child runs as the application pool's identity (`IIS APPPOOL\DefaultAppPool`), with
+  the same process and thread DACLs as any other child, but its primary token's own security descriptor is `IUSR`'s:
+  owner `IUSR`, full access for `SYSTEM` and `IUSR` only (`O:S-1-5-17D:(A;;…;;;SY)(A;;…;;;S-1-5-17)(A;;SW;;;BA)`). A
+  program which opens its own token is refused: `whoami`, PowerShell (`80070005` is `E_ACCESSDENIED`), and also `ping`
+  (`Unable to contact IP driver. General failure.`) and `tasklist` (`Not enough memory resources…`); `where`, `fsutil`,
+  `php.exe`, `cmd.exe`, `sort`, `findstr`, `certutil`, `hostname` and a .NET console program (the tools' stand-in) work.
+  `cmd.exe` started that way has the same token, but does not open it, and does not impersonate: the programs it starts
+  get a token owned by, and open to, the application pool's identity. With the anonymous user set to the application
+  pool's identity (`fastcgi.impersonate=1` still), the direct child's token is the application pool's, and `whoami` and
+  PowerShell work directly too, which singles the token's descriptor out as the cause. That those programs fail at the
+  very call which opens their own token is inferred from the descriptor and their messages, not traced.
+
+  `exec()` takes another way (`popen_ex()` in `TSRM/tsrm_win32.c`): `CreateProcessAsUserW()` with a primary token made
+  from the thread's impersonation token, so under IIS with `fastcgi.impersonate=1` what it runs runs as `IUSR`
+  (`whoami` prints `nt authority\iusr`), while what `proc_open()` runs runs as the application pool's identity.
 - PowerShell's `[IO.DriveInfo]::GetDrives()` takes 1.5 to 2 seconds to start.
 - A 32-bit PHP runs under WoW64 (the guest has the `WoW64-Support` feature): `PHP_INT_SIZE` is 4,
   `PROCESSOR_ARCHITECTURE` is `x86` and `PROCESSOR_ARCHITEW6432` is `AMD64` (unset in a 64-bit process), and it sees

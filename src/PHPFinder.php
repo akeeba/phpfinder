@@ -1336,7 +1336,10 @@ final class PHPFinder
 	 * program which proc_open() starts directly fails: PowerShell with "Loading managed Windows PowerShell failed with
 	 * error 80070005", whoami with "Access is denied" (where, wmic, fsutil and php.exe -v work). Started by cmd.exe,
 	 * both work. With fastcgi.impersonate=0 both work either way, so the impersonation is what triggers the failure
-	 * (Windows Server 2022, IIS 10, PHP 8.4). Why going through cmd.exe avoids it was not investigated.
+	 * (Windows Server 2022, IIS 10, PHP 8.4). proc_open() calls CreateProcessW() while the FastCGI thread impersonates
+	 * the site's anonymous user (IUSR): the program runs as the application pool's identity, but its own access token
+	 * is owned by IUSR and only IUSR and SYSTEM may open it, so a program which opens its own token is denied. cmd.exe
+	 * does not; the programs it starts get a token their identity may open.
 	 *
 	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % in
 	 * it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder can
