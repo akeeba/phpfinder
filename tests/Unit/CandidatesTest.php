@@ -361,34 +361,42 @@ final class CandidatesTest extends TestCase
 
 	public function testRecursivePathScannerHonoursTheDepth(): void
 	{
-		$this->fakePhp('scan/php', '5.9.1');
-		$this->fakePhp('scan/one/php', '5.9.1');
-		$this->fakePhp('scan/one/two/php', '5.9.1');
+		$zero = $this->fakePhp('scan/php', '5.9.1');
+		$one  = $this->fakePhp('scan/one/php', '5.9.1');
+		$two  = $this->fakePhp('scan/one/two/php', '5.9.1');
 		$this->fakePhp('scan/one/php-not-wanted', '5.9.1');
 
 		$finder = new PHPFinder();
 		$root   = $this->root() . '/scan';
+		$scan   = function (string $path, int $maxNesting) use ($finder): array {
+			$found = $this->callPrivate($finder, 'recursivePathScanner', [$path, 0, $maxNesting, ['php']]);
 
-		$this->assertCount(1, $this->callPrivate($finder, 'recursivePathScanner', [$root, 0, 0, ['php']]));
-		$this->assertCount(2, $this->callPrivate($finder, 'recursivePathScanner', [$root, 0, 1, ['php']]));
-		$this->assertCount(3, $this->callPrivate($finder, 'recursivePathScanner', [$root, 0, 2, ['php']]));
-		$this->assertSame([], $this->callPrivate($finder, 'recursivePathScanner', [$root . '/missing', 0, 2, ['php']]));
+			sort($found);
+
+			return $found;
+		};
+
+		$this->assertSame([$zero], $scan($root, 0));
+		$this->assertSame([$one, $zero], $scan($root, 1));
+		$this->assertSame([$one, $two, $zero], $scan($root, 2));
+		$this->assertSame([], $scan($root . '/missing', 2));
 	}
 
 	public function testRecursivePathScannerReturnsFullPaths(): void
 	{
-		$php = $this->fakePhp('scan/one/php', '5.9.1');
+		// Used to return $file->getBasename() ("php", "php.exe"), so everything it found (MAMP on macOS, the
+		// common Windows directories, WAMPServer) was later checked with is_file() relative to the current
+		// working directory, and dropped.
+		$php    = $this->fakePhp('scan/one/php', '5.9.1');
+		$finder = new PHPFinder();
 
-		$this->expectKnownBug(
-			'recursivePathScanner() returns $file->getBasename() ("php", "php.exe") instead of the full path, so '
-			. 'everything it finds (MAMP on macOS, the common Windows directories, WAMPServer) is later checked with '
-			. 'is_file() relative to the current working directory and dropped.',
-			function () use ($php) {
-				$this->assertSame(
-					[$php],
-					$this->callPrivate(new PHPFinder(), 'recursivePathScanner', [$this->root() . '/scan', 0, 1, ['php']])
-				);
-			}
+		$this->assertSame(
+			[$php], $this->callPrivate($finder, 'recursivePathScanner', [$this->root() . '/scan', 0, 1, ['php']])
+		);
+
+		// pathsMAMP() passes its root with a trailing separator.
+		$this->assertSame(
+			[$php], $this->callPrivate($finder, 'recursivePathScanner', [$this->root() . '/scan/', 0, 1, ['php']])
 		);
 	}
 }

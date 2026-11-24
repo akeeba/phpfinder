@@ -1036,7 +1036,7 @@ final class PHPFinder
 	 * @param   int     $maxNesting   Maximum depth to scan
 	 * @param   array   $binaryNames  List of allowed binary names (without the .exe suffix)
 	 *
-	 * @return  array
+	 * @return  array  The full paths of the binaries found
 	 * @since   1.0.0
 	 */
 	private function recursivePathScanner(string $path, int $depth, int $maxNesting, array $binaryNames): array
@@ -1077,17 +1077,18 @@ final class PHPFinder
 				continue;
 			}
 
+			// The full path: a bare file name would later be looked for relative to the current directory.
 			if ($isWindows)
 			{
 				if ($file->getExtension() === 'exe' && in_array($file->getBasename('.exe'), $binaryNames))
 				{
-					$ret[] = $file->getBasename();
+					$ret[] = $file->getPathname();
 				}
 
 			}
 			elseif (in_array($file->getBasename(), $binaryNames))
 			{
-				$ret[] = $file->getBasename();
+				$ret[] = $file->getPathname();
 			}
 		}
 
