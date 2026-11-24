@@ -153,10 +153,15 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
 - `cmd.exe` looks a bare command name (`where`, `wmic`, …) up in the current directory before the `PATH`, and PHP's
   `exec()` starts `cmd.exe` itself by its bare name, which Windows also looks for in the current directory first: a
   `cmd.exe` in the working directory runs instead of Windows' own (`WorkingDirectoryTest`).
-- Under IIS (FastCGI, impersonating the site's user), a program which PHP's `proc_open()` starts directly
-  (`bypass_shell`) may not open its own process: PowerShell fails with `Internal Windows PowerShell error. Loading
-  managed Windows PowerShell failed with error 80070005.`, `whoami` with `ERROR: Access is denied.`, while `where`,
-  `wmic`, `fsutil` and `php.exe -v` work. Started by `cmd.exe`, all of them work. Hence `cmd.exe` for the tools.
+- Under IIS, with `fastcgi.impersonate=1` (which the VM's `C:\php\php.ini` sets, as `php.ini-development` advises for
+  IIS; PHP's default is 0), a program which PHP's `proc_open()` starts directly (`bypass_shell`) fails: PowerShell
+  with `Internal Windows PowerShell error. Loading managed Windows PowerShell failed with error 80070005.`, `whoami`
+  with `ERROR: Access is denied.`, while `where`, `wmic`, `fsutil` and `php.exe -v` work. Started by
+  `System32\cmd.exe /d /s /c`, PowerShell and `whoami` work too (`whoami` prints `iis apppool\defaultapppool`). With
+  `fastcgi.impersonate=0` both work either way: the impersonation is what triggers the failure. This was checked by
+  hand, not by `FactsTest`: the same script under IIS, `fastcgi.impersonate` switched from 1 to 0 and back, with
+  `iisreset` in between, failed at 1 both times and worked at 0. Why going through `cmd.exe` avoids the failure was not
+  investigated. Hence `cmd.exe` for the tools.
 - PowerShell's `[IO.DriveInfo]::GetDrives()` takes 1.5 to 2 seconds to start.
 
 ## The PHP versions, and why

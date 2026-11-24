@@ -1316,9 +1316,11 @@ final class PHPFinder
 	 *   directory, so a cmd.exe in the application's working directory would run instead.
 	 *
 	 * With $throughCmd, the program runs through Windows' own cmd.exe, by its full path. This is for Windows' own tools,
-	 * whose paths have no %: under IIS, with FastCGI impersonation, a program which PHP starts directly may not open
-	 * its own process (PowerShell fails with "Loading managed Windows PowerShell failed with error 80070005", whoami
-	 * with "Access is denied"), while one which cmd.exe starts can.
+	 * whose paths have no %. Under IIS with fastcgi.impersonate=1 (php.ini's advice for IIS; the default is 0), a
+	 * program which proc_open() starts directly fails: PowerShell with "Loading managed Windows PowerShell failed with
+	 * error 80070005", whoami with "Access is denied" (where, wmic, fsutil and php.exe -v work). Started by cmd.exe,
+	 * both work. With fastcgi.impersonate=0 both work either way, so the impersonation is what triggers the failure
+	 * (Windows Server 2022, IIS 10, PHP 8.4). Why going through cmd.exe avoids it was not investigated.
 	 *
 	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % in
 	 * it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder can
