@@ -23,7 +23,7 @@ final class RunnerTest extends AbstractIntegrationTestCase
 		$this->assertSame(self::RUNNER, $info['phpBinary']);
 		$this->assertStringStartsWith($info['runner'] . '.', $info['runnerVersion']);
 
-		// Expected by run.sh when it starts the stack, e.g. 8.6 for the 8.6-rc image.
+		// Expected by run.sh when it starts the stack, e.g. 8.6 for the 8.6 image.
 		$expected = getenv('PHPFINDER_E2E_RUNNER');
 
 		if ($expected)

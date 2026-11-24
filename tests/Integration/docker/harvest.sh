@@ -7,7 +7,7 @@
 #
 #   /out/8.3/ld.so --library-path /out/8.3/lib /out/8.3/php -n -v
 #
-# Usage: harvest.sh   (the version is read from the binary, not from the image tag, so 8.6-rc works)
+# Usage: harvest.sh   (the version is read from the binary, not from the image tag, e.g. 8.6)
 set -eu
 
 version="$(/usr/local/bin/php -n -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')"

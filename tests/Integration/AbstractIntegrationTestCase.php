@@ -163,7 +163,7 @@ abstract class AbstractIntegrationTestCase extends TestCase
 	}
 
 	/**
-	 * The runner's major.minor version, e.g. 8.5 (also for the 8.6-rc image).
+	 * The runner's major.minor version, e.g. 8.6.
 	 */
 	protected function runner(): string
 	{

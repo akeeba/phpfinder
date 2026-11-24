@@ -97,7 +97,7 @@ set +a
 : "${PHP_MATRIX:?PHP_MATRIX is not set}"
 : "${DONOR_VERSIONS:?DONOR_VERSIONS is not set}"
 
-# The runner's major.minor, as PHP itself reports it (8.6-rc -> 8.6).
+# The runner's major.minor, as PHP itself reports it (e.g. 8.6), without any image tag suffix.
 RUNNER_MINOR="${PHP_VERSION%%-*}"
 
 # ---------------------------------------------------------------------------
