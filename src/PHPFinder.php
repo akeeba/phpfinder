@@ -442,9 +442,10 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			// exec() returns only the last line, and appends to $output: start afresh for each name.
+			// exec() returns only the last line, and appends to $output: start afresh for each name. `where` prints
+			// "INFO: Could not find files for the given pattern(s)." on STDERR for every name it does not find.
 			$output = [];
-			$where  = @exec('where ' . escapeshellarg($executable), $output, $resultCode);
+			$where  = @exec('where ' . escapeshellarg($executable) . ' 2>' . $this->getNullDevice(), $output, $resultCode);
 
 			if ($where === false || $resultCode !== 0)
 			{
@@ -1180,7 +1181,9 @@ final class PHPFinder
 
 		$result = @file_exists($path)
 		          && $this->isExecutable($path)
-		          && @exec($this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v', $output);
+		          && @exec(
+				          $this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v 2>' . $this->getNullDevice(), $output
+			          );
 
 		if (!$result)
 		{

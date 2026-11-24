@@ -199,10 +199,11 @@ abstract class AbstractWindowsTestCase extends TestCase
 	}
 
 	/**
-	 * No PHP diagnostics.
+	 * No PHP diagnostics, and nothing on STDERR.
 	 */
 	protected function assertClean(array $response): void
 	{
+		$this->assertNothingOnStderr($response);
 		$this->assertSame(
 			[],
 			$response['diagnostics'],

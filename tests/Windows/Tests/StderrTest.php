@@ -25,16 +25,9 @@ final class StderrTest extends AbstractWindowsTestCase
 			'getBestPath', '8.2', self::isolated(['useWhere' => true]), self::PATH_A . ';' . self::PATH_SYSTEM
 		);
 
+		$this->assertNothingOnStderr($response);
 		$this->assertClean($response);
 		$this->assertNull($response['result']);
-
-		$this->expectKnownBug(
-			'pathsUsingWhere() runs `where` without redirecting its STDERR (known-issues row 25).',
-			function () use ($response) {
-				$this->assertNothingOnStderr($response);
-			},
-			!self::isIis()
-		);
 	}
 
 	public function testBinaryWhichCannotRun(): void
@@ -42,15 +35,8 @@ final class StderrTest extends AbstractWindowsTestCase
 		// A php.exe which is not a program: Windows' error message goes to STDERR.
 		$response = $this->probe('analyze', null, [], self::PATH_SYSTEM, [], self::BROKEN_EXE);
 
+		$this->assertNothingOnStderr($response);
 		$this->assertClean($response);
 		$this->assertNull($response['result']['version']);
-
-		$this->expectKnownBug(
-			'analyzePHPVersion() runs the binary without redirecting its STDERR (known-issues row 25).',
-			function () use ($response) {
-				$this->assertNothingOnStderr($response);
-			},
-			!self::isIis()
-		);
 	}
 }
