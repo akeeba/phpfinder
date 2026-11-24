@@ -1042,8 +1042,9 @@ final class PHPFinder
 	 *
 	 * The first of these tools which lists any drive is used:
 	 *
-	 * - `wmic logicaldisk get name`: a "Name" header, then one drive per line. wmic is gone from Windows 11 24H2 and
-	 *   Windows Server 2025.
+	 * - `wmic logicaldisk get name`: a "Name" header, then one drive per line. Microsoft has removed wmic from every
+	 *   supported Windows 11 release (24H2, 25H2: the August 2026 update; it was disabled by default from 2024), and it
+	 *   is an optional Feature on Demand on Windows Server 2025, which Windows Server 2028 removes.
 	 * - `fsutil fsinfo drives`: one line, "Drives: C:\ D:\" (the label is localised).
 	 * - PowerShell's [IO.DriveInfo]::GetDrives(): one drive per line, "C:\". The slowest, about two seconds.
 	 *

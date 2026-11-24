@@ -15,10 +15,10 @@ use Akeeba\PHPFinder\Tests\Windows\AbstractWindowsTestCase;
  * The Windows drive list (getWindowsDrives()), which the common-directory, MAMP, WAMPServer and XAMPP searches scan.
  *
  * The guest has C: (system), D: (a VHD provision.ps1 attaches) and E: (an empty CD drive). PHPFinder runs wmic, fsutil
- * and PowerShell from the Windows directory, by their full paths. A Windows without wmic (Windows 11 24H2, Windows
- * Server 2025), or without fsutil, is the real one with those renamed for the duration of a test (hideTools()). The
- * misbehaving tools are stand-ins (provision.ps1) in a Windows directory of their own, which the test gives to the
- * library instead of C:\Windows.
+ * and PowerShell from the Windows directory, by their full paths. A Windows without wmic (Windows 11 since the August
+ * 2026 update; Windows Server 2025 without its WMIC Feature on Demand), or without fsutil, is the real one with those
+ * renamed for the duration of a test (hideTools()). The misbehaving tools are stand-ins (provision.ps1) in a Windows
+ * directory of their own, which the test gives to the library instead of C:\Windows.
  */
 final class DrivesTest extends AbstractWindowsTestCase
 {
@@ -50,7 +50,7 @@ final class DrivesTest extends AbstractWindowsTestCase
 
 	public function testDrivesFromFsutilWithoutWmic(): void
 	{
-		// Windows' own fsutil, with WMIC.exe gone, as on Windows 11 24H2 and Windows Server 2025.
+		// Windows' own fsutil, with WMIC.exe gone, as on Windows 11, or Windows Server 2025 without the WMIC feature.
 		$this->hideToolsAndCheck(['wmic' => true]);
 
 		$this->assertDrives(self::ALL_DRIVES, null);

@@ -117,7 +117,7 @@ PHPFinder runs `where`, `wmic`, `fsutil` and PowerShell from the Windows directo
 `System32\WindowsPowerShell\v1.0\powershell.exe`, through `System32\cmd.exe /d /s /c` (see "What the real Windows
 prints" for why). The `PATH` does not matter to them, so the tests change what runs in two ways:
 
-- **A Windows without `wmic`** (Windows 11 24H2, Windows Server 2025), or without `fsutil`, is the real one with
+- **A Windows without `wmic`** (see "Not covered"), or without `fsutil`, is the real one with
   `WMIC.exe` or `fsutil.exe` renamed for the duration of a test: `hideTools()` asks `relay.php`, which runs as
   Administrator, to rename them (`provision.ps1` takes them over from TrustedInstaller first), and every such test puts
   them back in `tearDown()`. The next start of the VM restores its snapshot anyway. Both copies: `System32`'s and
@@ -264,6 +264,18 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 ## Not covered
 
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
-- Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed (both copies, assuming
-  Windows removes the 32-bit one with the 64-bit one).
+- Windows 11 and Windows Server 2025 themselves. A Windows without `wmic` is this one with both copies of `WMIC.exe`
+  renamed. Which Windows lack it, according to Microsoft: Windows 11 had it as a Feature on Demand from 22H2, disabled
+  by default on 23H2 and 24H2 from 2024, removed on upgrade to 25H2, and removed from every supported Windows 11 release
+  (24H2 and 25H2 with the August 2026 preview update, 26H1 with the September one), no longer installable
+  ([KB5067470](https://support.microsoft.com/help/5067470), "Windows Management Instrumentation Command-line (WMIC)
+  removal from Windows", last changed 29 September 2026). Windows Server 2025 has it as a Feature on Demand, added with
+  `DISM /Add-Capability`, and Windows Server 2028 (in preview) removes it ("Features removed or no longer developed in
+  Windows Server", learn.microsoft.com, 20 November 2026). Windows Server 2022 and Windows 10 keep it inbox. Neither
+  source says whether the 32-bit copy (`SysWOW64\wbem\WMIC.exe`) goes with the 64-bit one, and this VM cannot show
+  it: on Windows Server 2022 `WMIC` is no capability (`Get-WindowsCapability -Online` and `DISM /Get-Capabilities` list
+  none), so it cannot be removed the way Windows removes it. Hiding both copies is the safe assumption: a Windows which
+  kept the 32-bit one would only let the 32-bit runners use it. Checking it for real needs a Windows Server 2025 (or
+  Windows 11) guest: removing the WMIC capability there, then looking for both files and running the suite; that is
+  another VM image for `../buildfiles/vm` (installation media, unattended setup, an evaluation licence), not built.
 - A server whose system drive is not `C:`.

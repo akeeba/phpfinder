@@ -269,7 +269,7 @@ foreach ($name in 'where.exe', 'wmic.exe', 'fsutil.exe', 'powershell.exe') { New
 New-FakeTool "$pf\planted-cmd" 'cmd.exe'
 foreach ($dir in "$pf\planted", "$pf\planted-cmd") { & icacls $dir /grant 'Everyone:(OI)(CI)M' | Out-Null }
 
-# Let the suite hide wmic and fsutil for real (a Windows without wmic: Windows 11 24H2, Windows Server 2025), by
+# Let the suite hide wmic and fsutil for real (a Windows without wmic: Windows 11, Windows Server 2025 without it), by
 # renaming them (relay.php). They belong to TrustedInstaller; the VM's snapshot restores them on the next start. The
 # 32-bit copies in SysWOW64 too: that is what an x86 runner sees at C:\Windows\System32.
 foreach ($tool in $wmic, $fsutil, ($wmic -replace '^System32', 'SysWOW64'), ($fsutil -replace '^System32', 'SysWOW64')) {
