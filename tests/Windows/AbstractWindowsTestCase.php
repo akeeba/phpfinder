@@ -46,7 +46,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const MAMP_86              = 'C:\\MAMP\\bin\\php\\php8.6.0\\php.exe';
 	protected const XAMPP_72             = 'C:\\xampp\\php\\php.exe';
 	protected const PLESK_DIR            = 'C:\\Program Files (x86)\\Plesk\\';
-	protected const PLESK_83             = 'C:\\Program Files (x86)\\Plesk\\Additional\\PHP8.3\\php.exe';
+	protected const PLESK_83             = 'C:\\Program Files (x86)\\Plesk\\Additional\\PleskPHP83\\php.exe';
+	protected const PLESK_LEGACY_82      = 'C:\\Program Files (x86)\\Plesk\\Additional\\PHP82\\php.exe';
 	protected const PATH_A               = 'C:\\pf\\path-a';
 	protected const PATH_A_81            = 'C:\\pf\\path-a\\php.exe';
 	protected const PATH_B               = 'C:\\pf\\path-b';

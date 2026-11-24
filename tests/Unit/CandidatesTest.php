@@ -265,6 +265,40 @@ final class CandidatesTest extends TestCase
 		$this->assertSame([], $this->callPrivate(new PHPFinder(Configuration::make()->setSoftwareSpecific(false)), 'pathsPlesk', ['8.4']));
 	}
 
+	public function testPleskPathsOnWindows(): void
+	{
+		$saved = getenv('PLESK_DIR');
+
+		// Plesk sets it with a trailing backslash.
+		putenv('PLESK_DIR=C:\\Program Files (x86)\\Plesk\\');
+
+		try
+		{
+			$finder = $this->simulateOs(new PHPFinder(), 'Windows');
+
+			// Used to be Additional\PHP8.4: Plesk names its directories PleskPHP84 (Obsidian, 12.x), or PHP84 in the
+			// documentation of older releases, never with a dot.
+			$this->assertSame(
+				[
+					'C:\\Program Files (x86)\\Plesk\\Additional\\PleskPHP84\\php.exe',
+					'C:\\Program Files (x86)\\Plesk\\Additional\\PHP84\\php.exe',
+				],
+				$this->callPrivate($finder, 'pathsPlesk', ['8.4.1'])
+			);
+			$this->assertSame(
+				['C:\\Program Files (x86)\\Plesk\\Additional\\PleskPHP80\\php.exe', 'C:\\Program Files (x86)\\Plesk\\Additional\\PHP80\\php.exe'],
+				$this->callPrivate($finder, 'pathsPlesk', ['8.0'])
+			);
+
+			putenv('PLESK_DIR');
+			$this->assertSame([], $this->callPrivate($finder, 'pathsPlesk', ['8.4']));
+		}
+		finally
+		{
+			putenv($saved === false ? 'PLESK_DIR' : ('PLESK_DIR=' . $saved));
+		}
+	}
+
 	public function testCPanelAndCloudLinuxPathsNeedAVersionAndSoftwareSpecific(): void
 	{
 		$finder = new PHPFinder();

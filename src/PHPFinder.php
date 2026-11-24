@@ -614,7 +614,12 @@ final class PHPFinder
 	/**
 	 * Return Plesk-specific PHP paths. Only works given a version.
 	 *
-	 * Available on Linux. Very fast.
+	 * On Linux and BSD, Plesk installs each PHP version in /opt/plesk/php/X.Y/bin/php. On Windows, under the Plesk
+	 * directory (the plesk_dir environment variable, usually C:\Program Files (x86)\Plesk\): Plesk Obsidian, and Plesk
+	 * since at least 12, keep each PHP version in Additional\PleskPHP<major><minor>\php.exe (e.g. PleskPHP83);
+	 * Plesk's documentation also lists Additional\PHP<major><minor>\php.exe (PHP 5.3 to 7.0, older releases).
+	 *
+	 * Available on Linux, BSD and Windows. Very fast.
 	 *
 	 * @param   string|null  $version  The version to get paths for.
 	 *
@@ -651,7 +656,8 @@ final class PHPFinder
 				];
 
 			case 'WINDOWS':
-				// Binary found in %plesk_dir%Additional\PHPXX\php.exe
+				// %plesk_dir%Additional\PleskPHP83\php.exe, or %plesk_dir%Additional\PHP83\php.exe. Plesk sets plesk_dir
+				// with a trailing backslash; the environment is case-insensitive on Windows.
 				$pleskDir = @getenv('PLESK_DIR');
 
 				if (empty($pleskDir))
@@ -659,8 +665,11 @@ final class PHPFinder
 					return [];
 				}
 
+				$additional = rtrim($pleskDir, '\\') . '\\Additional\\';
+
 				return [
-					rtrim($pleskDir, '\\') . '\\Additional\\PHP' . $suffix . '\\php.exe',
+					$additional . 'PleskPHP' . $major . $minor . '\\php.exe',
+					$additional . 'PHP' . $major . $minor . '\\php.exe',
 				];
 
 			default:

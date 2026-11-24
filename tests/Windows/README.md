@@ -77,7 +77,8 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\wamp64\bin\php\php8.0.30\php.exe`, `…\php7.2.34\php.exe` | 8.0, 7.2 | WAMPServer |
 | `C:\MAMP\bin\php\php8.6.0\php.exe` | 8.6 | MAMP on Windows |
 | `C:\xampp\php\php.exe` | 7.2 | XAMPP |
-| `C:\Program Files (x86)\Plesk\Additional\PHP8.3\php.exe` | 8.3 | Plesk, with `plesk_dir` set as Plesk does (lower case, trailing backslash). The layout is the one the code builds; it is **not confirmed** against a real Plesk for Windows |
+| `C:\Program Files (x86)\Plesk\Additional\PleskPHP83\php.exe` | 8.3 | Plesk, with `plesk_dir` set as Plesk does (lower case, trailing backslash): the layout of Plesk Obsidian (and 12.x) |
+| `C:\Program Files (x86)\Plesk\Additional\PHP82\php.exe` | 8.2 | Plesk: the layout the documentation of older releases gives |
 | `C:\pf\path-a\php.exe` | 8.1 | `where`; only in the `PATH` when a test puts it there |
 | `C:\pf\path-b\php.exe`, `C:\pf\path-b\php82.exe` | 8.2 | `where` listing several binaries, and a versioned name |
 | `C:\pf\path-cgi\php.exe` | 8.3 **php-cgi.exe** | `validateCli` (it reports `(cgi-fcgi)`) |
@@ -90,6 +91,11 @@ PHPFinder checks that a tool exists by looking for `<name>.exe` in the `PATH` (P
 `.bat` file), and runs it by name through `cmd.exe`, which runs the first `<name>.bat` or `<name>.exe` in the `PATH`. So a
 `.bat` stand-in before the system directories in the `PATH` replaces a tool which really exists. A Windows without
 `wmic` (Windows 11 24H2, Windows Server 2025) is a `PATH` without `C:\Windows\System32\Wbem`.
+
+Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian
+editions alike) lists `%plesk_dir%Additional\PHP<XY>\php.exe` for PHP 5.3 to 7.0; Plesk Obsidian installs
+`%plesk_dir%Additional\PleskPHP<XY>\php.exe` (e.g. `PleskPHP81`, `PleskPHP83`: Plesk's support articles and staff
+answers on its forum), and Plesk 12 already used `PleskPHP54`. Neither has a dot. There is no real Plesk in the guest.
 
 ## A second drive
 
@@ -132,6 +138,6 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 
 ## Not covered
 
-- Plesk for Windows' real directory layout (see the fixture table).
+- A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
 - Windows 11 and Windows Server 2025 themselves: their missing `wmic` is simulated through the `PATH`.
 - A server whose system drive is not `C:`.

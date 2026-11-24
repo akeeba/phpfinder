@@ -122,10 +122,12 @@ final class StrategiesTest extends AbstractWindowsTestCase
 		$config = self::isolated(['softwareSpecific' => true]);
 
 		// Plesk sets plesk_dir, in lower case and with a trailing backslash; Windows' environment is case-insensitive.
-		$this->assertSame(
-			self::PLESK_83,
-			$this->bestPath('8.3', $config, self::PATH_SYSTEM, ['plesk_dir' => self::PLESK_DIR])
-		);
+		// Used to look for Additional\PHP8.3, a directory Plesk never makes: Plesk Obsidian (and 12.x) use PleskPHP83,
+		// the documentation of older releases PHP83.
+		$env = ['plesk_dir' => self::PLESK_DIR];
+
+		$this->assertSame(self::PLESK_83, $this->bestPath('8.3', $config, self::PATH_SYSTEM, $env));
+		$this->assertSame(self::PLESK_LEGACY_82, $this->bestPath('8.2', $config, self::PATH_SYSTEM, $env));
 		$this->assertNull($this->bestPath('8.3', $config, self::PATH_SYSTEM));
 	}
 

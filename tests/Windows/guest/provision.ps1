@@ -120,7 +120,8 @@ New-Fixture '8.0' 'C:\wamp64\bin\php\php8.0.30'
 New-Fixture '7.2' 'C:\wamp64\bin\php\php7.2.34'
 New-Fixture '8.6' 'C:\MAMP\bin\php\php8.6.0'
 New-Fixture '7.2' 'C:\xampp\php'
-New-Fixture '8.3' 'C:\Program Files (x86)\Plesk\Additional\PHP8.3'
+New-Fixture '8.3' 'C:\Program Files (x86)\Plesk\Additional\PleskPHP83'   # Plesk Obsidian, 12.x
+New-Fixture '8.2' 'C:\Program Files (x86)\Plesk\Additional\PHP82'         # older Plesk releases' documentation
 # Only in the PATH when a test puts them there (`where`).
 New-Fixture '8.1' "$pf\path-a"
 New-Fixture '8.2' "$pf\path-b"
