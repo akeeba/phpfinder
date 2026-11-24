@@ -127,6 +127,18 @@ New-Fixture '8.1' "$pf\path-a"
 New-Fixture '8.2' "$pf\path-b"
 New-Fixture '8.2' "$pf\path-b" 'php82.exe'
 New-Fixture '8.3' "$pf\path-cgi" 'php.exe' 'php-cgi.exe' 'cgi-fcgi'
+# `where` lists every file named php with an extension in PATHEXT, and php itself. Next to PHP 8.2's php.exe: a php.bat
+# and a php.cmd which claim to be PHP 8.1 (so a test would see it if one ran), and an extensionless shell script, as
+# Cygwin or Git Bash would run.
+New-Fixture '8.2' "$pf\path-ext"
+[IO.File]::WriteAllText("$pf\path-ext\php.bat", "@echo PHP 8.1.99 (cli) (php.bat)`r`n", [Text.Encoding]::ASCII)
+[IO.File]::WriteAllText("$pf\path-ext\php.cmd", "@echo PHP 8.1.98 (cli) (php.cmd)`r`n", [Text.Encoding]::ASCII)
+[IO.File]::WriteAllText("$pf\path-ext\php", "#!/bin/sh`nexec php.exe `"`$@`"`n", [Text.Encoding]::ASCII)
+foreach ($wrapper in 'php.bat', 'php.cmd') {
+    $banner = (& "$env:windir\System32\cmd.exe" /d /c "$pf\path-ext\$wrapper" 2>&1 | Select-Object -First 1) -as [string]
+    if ($banner -notlike 'PHP 8.1.9* (cli)*') { throw "fixture $pf\path-ext\$wrapper does not run: $banner" }
+    "fixture $pf\path-ext\${wrapper}: $banner"
+}
 # Directory names with the characters cmd.exe treats specially. %PF_UNDEFINED% names no environment variable; %OS% does.
 New-Fixture '8.5' "$pf\odd %PF_UNDEFINED% & (x) !bang ^caret"
 New-Fixture '8.5' "$pf\odd %OS%"

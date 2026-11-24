@@ -104,6 +104,29 @@ final class FactsTest extends AbstractWindowsTestCase
 		);
 	}
 
+	public function testWhereListsEveryPathextMatchAndTheBareName(): void
+	{
+		// C:\pf\path-ext holds php.exe, php.bat, php.cmd and an extensionless php. `where` lists them all, in the
+		// directory's (alphabetical) order, not PATHEXT's (.COM;.EXE;.BAT;.CMD;…).
+		$where = $this->facts()['whereExt'];
+
+		$this->assertSame(0, $where['status']);
+		$this->assertSamePaths(
+			[self::PATH_EXT . '\\php', self::PATH_EXT . '\\php.bat', self::PATH_EXT . '\\php.cmd', self::PATH_EXT_82],
+			$where['lines']
+		);
+	}
+
+	public function testIsExecutableIsOnlyTrueForAProgram(): void
+	{
+		// PHP's is_executable() on Windows is TRUE for a program file, whatever its name (a copy of php.exe named php or
+		// php.com too, checked by hand on 7.2 to 8.6), and FALSE for a .bat or .cmd file, or an extensionless script.
+		$this->assertSame(
+			['php.exe' => true, 'php.bat' => false, 'php.cmd' => false, 'php' => false],
+			$this->facts()['isExecutable']
+		);
+	}
+
 	public function testTheSystemDriveVariable(): void
 	{
 		$this->assertSame('C:', $this->facts()['systemDrive']);

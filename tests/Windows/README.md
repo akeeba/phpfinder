@@ -82,6 +82,7 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\path-a\php.exe` | 8.1 | `where`; only in the `PATH` when a test puts it there |
 | `C:\pf\path-b\php.exe`, `C:\pf\path-b\php82.exe` | 8.2 | `where` listing several binaries, and a versioned name |
 | `C:\pf\path-cgi\php.exe` | 8.3 **php-cgi.exe** | `validateCli` (it reports `(cgi-fcgi)`) |
+| `C:\pf\path-ext\php.exe`, with `php.bat`, `php.cmd` and an extensionless `php` | 8.2; the `.bat` and `.cmd` print a PHP 8.1 banner | `where` listing every `PATHEXT` match: only `.exe` files are kept |
 | `C:\pf\odd %PF_UNDEFINED% & (x) !bang ^caret\php.exe` | 8.5 | running a path with the characters `cmd.exe` treats specially |
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
@@ -150,6 +151,12 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
 - `where php` prints each match on its own line, `\r\n`, in `PATH` order, exit code 0. Without a match: nothing on
   STDOUT, `INFO: Could not find files for the given pattern(s).` on STDERR, exit code 1. It searches the current
   directory before the `PATH`.
+- `where php` lists every file named `php` with an extension in `PATHEXT` (`.COM;.EXE;.BAT;.CMD;…`) **and** an
+  extensionless `php`, in each directory's order (alphabetical), not `PATHEXT`'s: `php`, `php.bat`, `php.cmd`, `php.com`,
+  `php.exe`. PHP's `is_executable()` is TRUE for a program file whatever its name (a copy of `php.exe` named `php` or
+  `php.com`), FALSE for a `.bat`, a `.cmd` or an extensionless script, on 7.2 to 8.6. A `.bat` which `proc_open()`
+  starts with `bypass_shell` runs through the `cmd.exe` which `%ComSpec%` names: not one in the working directory or
+  first in the `PATH` (checked by hand, 7.2 and 8.4).
 - `cmd.exe` looks a bare command name (`where`, `wmic`, …) up in the current directory before the `PATH`, and PHP's
   `exec()` starts `cmd.exe` itself by its bare name, which Windows also looks for in the current directory first: a
   `cmd.exe` in the working directory runs instead of Windows' own (`WorkingDirectoryTest`).

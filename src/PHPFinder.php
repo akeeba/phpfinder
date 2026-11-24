@@ -165,6 +165,8 @@ final class PHPFinder
 	 * The returned paths might NOT correspond to the correct version. Some paths are generic. Use getBestPath() with
 	 * default configuration options to guarantee the accuracy of the result.
 	 *
+	 * On Windows, only .exe files are returned: PHP's CLI binary is php.exe (see isWindowsProgramFile()).
+	 *
 	 * @param   string|null  $version  The version to look for.
 	 *
 	 * @return  array
@@ -194,10 +196,14 @@ final class PHPFinder
 		$ret = array_merge($ret, $this->pathsHomeBrew($version));
 		$ret = array_merge($ret, $this->pathsWAMPServer($version));
 
+		$isWindows = $this->getOsFamily() === 'WINDOWS';
+
 		return array_filter(
 			array_unique($ret),
-			function ($filePath) {
-				return !empty($filePath) && @is_file($filePath);
+			function ($filePath) use ($isWindows) {
+				return !empty($filePath)
+				       && (!$isWindows || $this->isWindowsProgramFile($filePath))
+				       && @is_file($filePath);
 			}
 		);
 	}
@@ -1514,25 +1520,37 @@ final class PHPFinder
 		return strtoupper($this->osFamily ?? PHP_OS_FAMILY);
 	}
 
+	/**
+	 * Whether this very file is executable.
+	 *
+	 * Not the same file with .exe, .com or .bat appended on Windows: the path given is what would run. (On Windows,
+	 * PHP's is_executable() is TRUE only for a program file, whatever its extension, never for a .bat or .cmd file.)
+	 *
+	 * @param   string  $fullPath  The path to the file
+	 *
+	 * @return  bool
+	 * @since   1.0.2
+	 */
 	private function isExecutable(string $fullPath): bool
 	{
-		if (@is_executable($fullPath))
-		{
-			return true;
-		}
+		return @is_executable($fullPath);
+	}
 
-		if (
-			($this->getOsFamily() === 'WINDOWS')
-			&& (
-				@is_executable($fullPath . '.exe')
-				|| @is_executable($fullPath . '.com')
-				|| @is_executable($fullPath . '.bat')
-			)
-		)
-		{
-			return true;
-		}
-
-		return false;
+	/**
+	 * Whether a path, on Windows, names a program file PHP's CLI binary could be: one ending in .exe, in any case.
+	 *
+	 * `where php` lists every file named php with an extension in PATHEXT, and php itself: php.bat, php.cmd, php.com,
+	 * an extensionless php (e.g. a shell script for Cygwin or Git Bash). None of them is PHP's CLI binary, and an
+	 * application which runs the path it is given would run them. Windows runs a .bat or .cmd file through cmd.exe (the
+	 * one %ComSpec% names), whose quoting rules differ from a program's and which expands %NAME% in its command line.
+	 *
+	 * @param   string  $path  The path
+	 *
+	 * @return  bool
+	 * @since   1.0.2
+	 */
+	private function isWindowsProgramFile(string $path): bool
+	{
+		return strtolower(substr($path, -4)) === '.exe';
 	}
 }

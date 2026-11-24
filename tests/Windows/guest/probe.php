@@ -210,6 +210,13 @@ switch ($request['call'])
 			'where'        => $run('where php'),
 			'whereRaw'     => $raw('where php'),
 			'whereNone'    => $raw('where pf-no-such-binary'),
+			'whereExt'     => $run('where "C:\\pf\\path-ext:php"'),
+			'isExecutable' => array_map(
+				function ($file) {
+					return is_executable('C:\\pf\\path-ext\\' . $file);
+				},
+				['php.exe' => 'php.exe', 'php.bat' => 'php.bat', 'php.cmd' => 'php.cmd', 'php' => 'php']
+			),
 			'pleskDir'     => getenv('PLESK_DIR'),
 		];
 		break;

@@ -194,6 +194,31 @@ final class StrategiesTest extends TestCase
 		$this->assertSame([], $this->callPrivate($this->simulateOs($this->finder(['useWhere' => false]), 'Windows'), 'pathsUsingWhere', ['5.9']));
 	}
 
+	public function testWhereKeepsOnlyExeFiles(): void
+	{
+		// Windows' `where $PATH:php` lists every file named php with an extension in PATHEXT, and php itself: php.bat,
+		// php.cmd, an extensionless php (as on Windows Server 2022, see FactsTest in tests/Windows). Only php.exe, in
+		// any case, is a PHP binary. Here every one is a fake PHP which the host can run, so a kept one would be found.
+		$bat  = $this->fakePhp('w/ext/php.bat', '5.9.1');
+		$cmd  = $this->fakePhp('w/ext/php.cmd', '5.9.2');
+		$bare = $this->fakePhp('w/ext/php', '5.9.3');
+		$exe  = $this->fakePhp('w/ext/PHP.EXE', '5.9.4');
+
+		$this->fakeExecutable(
+			self::windowsTool('where'),
+			"case \"\$1\" in\n"
+			. "  '\$PATH:php') printf '%s\\r\\n' '" . $bare . "' '" . $bat . "' '" . $cmd . "' '" . $exe . "' ;;\n"
+			. "  *) echo 'INFO: Could not find files for the given pattern(s).' >&2; exit 1 ;;\n"
+			. "esac\n"
+		);
+
+		$finder = $this->simulateOs($this->finder(['useWhere' => true]), 'Windows');
+
+		$this->assertSame([$exe], array_values($finder->getPossiblePaths('5.9')));
+		$this->assertSame($exe, $finder->getBestPath('5.9'));
+		$this->assertSame($exe, $finder->getBestPath(null));
+	}
+
 	public function testWindowsDrivesFromWmic(): void
 	{
 		// `wmic logicaldisk get name`, as it prints through a pipe: a header, each name padded to the column

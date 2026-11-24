@@ -55,6 +55,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const PATH_B_PHP82_82      = 'C:\\pf\\path-b\\php82.exe';
 	protected const PATH_CGI             = 'C:\\pf\\path-cgi';
 	protected const PATH_CGI_83          = 'C:\\pf\\path-cgi\\php.exe';
+	protected const PATH_EXT             = 'C:\\pf\\path-ext';
+	protected const PATH_EXT_82          = 'C:\\pf\\path-ext\\php.exe';
 	protected const ODD_DIR              = 'C:\\pf\\odd %PF_UNDEFINED% & (x) !bang ^caret';
 	protected const ODD_85               = self::ODD_DIR . '\\php.exe';
 	protected const ODD_DEFINED_VAR_DIR  = 'C:\\pf\\odd %OS%';

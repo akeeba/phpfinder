@@ -52,6 +52,18 @@ final class StrategiesTest extends AbstractWindowsTestCase
 		$this->assertClean($response);
 	}
 
+	public function testWhereKeepsOnlyExeFiles(): void
+	{
+		// C:\pf\path-ext holds PHP 8.2's php.exe, a php.bat and a php.cmd which claim to be PHP 8.1, and an extensionless
+		// php: `where $PATH:php` lists all four (FactsTest). Only php.exe is PHP's CLI binary.
+		$config = self::isolated(['useWhere' => true]);
+		$path   = self::PATH_EXT . ';' . self::PATH_A . ';' . self::PATH_SYSTEM;
+
+		$this->assertSamePaths([self::PATH_EXT_82, self::PATH_A_81], $this->possiblePaths(null, $config, $path));
+		$this->assertSame(self::PATH_A_81, $this->bestPath('8.1', $config, $path));
+		$this->assertSame(self::PATH_EXT_82, $this->bestPath(null, $config, $path));
+	}
+
 	public function testWhereIsGated(): void
 	{
 		$this->assertSame([], $this->possiblePaths('8.2', self::isolated(), self::PATH_WHERE));
