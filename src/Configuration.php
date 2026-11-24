@@ -72,9 +72,10 @@ final class Configuration
 	/**
 	 * Use methods specific to common prepackaged AMP environments, and common hosting control panels.
 	 *
-	 * This will look for the most common PHP paths in XAMPP, MAMP (Pro), WAMPServer, cPanel, and Plesk. These are
-	 * fairly fast, but you may want to disable them if your software will never run on these environments, or you are
-	 * not interested in supporting these environments.
+	 * This will look for the most common PHP paths in XAMPP, MAMP (Pro), WAMPServer, cPanel, CloudLinux, Plesk, and
+	 * Homebrew (on macOS and Linux, asking `brew` when it is in the PATH). These are fairly fast, but you may want to
+	 * disable them if your software will never run on these environments, or you are not interested in supporting
+	 * these environments.
 	 *
 	 * Default: true
 	 *

@@ -18,7 +18,7 @@ The environments currently supported are:
 * Plesk on Linux, and Windows
 * XAMPP on Linux, Windows, or macOS
 * MAMP on Windows, and macOS
-* HomeBrew on macOS
+* HomeBrew on macOS, and Linux
 * WAMPServer on Windows
 * Generic Linux server (works with Debian, Red Hat, Arch Linux, and their derivative distributions)
 * Generic BSD server
