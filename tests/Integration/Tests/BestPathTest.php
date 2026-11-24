@@ -53,8 +53,8 @@ final class BestPathTest extends AbstractIntegrationTestCase
 	{
 		$everything = ['useWhereIs' => true];
 
-		// Chosen so that none can be a SUBSTRING of a real x.y.z version either: version validation is a
-		// substring match (a known bug, see the unit suite), so "5.6" would match a runner at 8.5.6.
+		// Versions no binary in the container has. That a version which is merely a SUBSTRING of a real one
+		// is not found either is testVersionIsMatchedOnWholeComponents().
 		foreach (['10.1', '11.3', '9.9.9', '8.2.999'] as $version)
 		{
 			$this->assertNull($this->bestPath($version, $everything, self::PATH_WITH_WHICH_DIR), "PHP $version");
@@ -64,6 +64,17 @@ final class BestPathTest extends AbstractIntegrationTestCase
 			$this->assertNull($response['result'], "PHP $version (meta)");
 			$this->assertNoDiagnostics($response);
 		}
+	}
+
+	public function testVersionIsMatchedOnWholeComponents(): void
+	{
+		// The runner, e.g. PHP 8.5.6, is the generic /usr/local/bin/php, tried for every version. Asking for
+		// "5.6" used to return it: version validation was a substring match.
+		$runnerVersion = $this->runnerInfo()['runnerVersion'];
+		$substring     = substr($runnerVersion, strpos($runnerVersion, '.') + 1);
+
+		$this->assertNull($this->bestPath($substring, ['useWhereIs' => true], self::PATH_WITH_WHICH_DIR), "PHP $substring");
+		$this->assertSame(self::RUNNER, $this->bestPath($runnerVersion, [], self::PATH_WITH_WHICH_DIR));
 	}
 
 	public function testAFullVersionMustMatch(): void
