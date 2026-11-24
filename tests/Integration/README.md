@@ -65,6 +65,8 @@ the binary's own loader and libraries makes it independent of the runner image's
 | `/opt/cpanel/ea-php80/root/usr/bin/php` | **8.2** CLI | cPanel's path for PHP 8.0 (no 8.0 image): the candidate paths for a `.0` minor version |
 | `/opt/cloudlinux/alt-php83/root/usr/bin/php` | 8.3 CLI | CloudLinux |
 | `/opt/pf-ua/php84` | 8.4 CLI | `update-alternatives` (registered in the `php` group) |
+| `/opt/pf-brew/opt/php@8.3/bin/php` | 8.3 CLI | Homebrew, through `brew --prefix php@8.3`; the fake `/opt/pf-brew/bin/brew` is only in the `PATH` when a test adds it |
+| `/home/linuxbrew/.linuxbrew/opt/php@8.4/bin/php` | 8.4 CLI | Homebrew's default Linux prefix, searched without `brew` |
 
 The runner's own `/usr/local/bin/php` is also `PHP_BINARY` inside the probe, which exercises the PHP
 constants strategy.

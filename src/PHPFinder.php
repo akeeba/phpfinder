@@ -744,6 +744,12 @@ final class PHPFinder
 	/**
 	 * Get the HomeBrew paths for PHP CLI.
 	 *
+	 * Homebrew runs on macOS, and on Linux (formerly "Linuxbrew"). When `brew` is in the PATH it is asked for the
+	 * prefix of the php@X.Y formula (only given a major and minor version), of the php formula, and of Homebrew
+	 * itself (whose bin/php is the linked PHP). The formulae are also looked for under Homebrew's default prefixes,
+	 * for when `brew` is not in the PATH, as is common under a web server: /opt/homebrew (Apple Silicon) and
+	 * /usr/local (Intel) on macOS, /home/linuxbrew/.linuxbrew on Linux.
+	 *
 	 * Available on macOS, and Linux. Moderately fast.
 	 *
 	 * @param   string|null  $version  The version to get paths for.
@@ -753,40 +759,62 @@ final class PHPFinder
 	 */
 	private function pathsHomeBrew(?string $version): array
 	{
-		if (!$this->configuration->softwareSpecific && !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD', 'DARWIN']))
+		if (
+			!$this->configuration->softwareSpecific
+			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'DARWIN'])
+		)
 		{
 			return [];
 		}
-
-		if (!function_exists('exec') || !$this->executableExists('brew'))
-		{
-			return [];
-		}
-
-		$checkFor = [];
 
 		[$major, $minor] = $this->getMajorMinor($version);
 
-		if ($minor !== null && $major === null)
+		// Most specific first. There is no php@X formula for a bare major version.
+		$formulae = [];
+
+		if ($major !== null && $minor !== null)
 		{
-			$checkFor[] = 'php@' . $major . '.' . $minor;
+			$formulae[] = 'php@' . $major . '.' . $minor;
 		}
 
-		$checkFor[] = 'php';
+		$formulae[] = 'php';
 
-		foreach ($checkFor as $package)
+		$ret = [];
+
+		if (function_exists('exec') && $this->executableExists('brew'))
 		{
-			$result = @exec('brew --prefix ' . escapeshellarg($package));
-
-			if (!$result)
+			// `brew --prefix <formula>` prints <prefix>/opt/<formula> whether that formula is installed or not, so
+			// every answer is a candidate; getPossiblePaths() drops those which are not files. The bare
+			// `brew --prefix` (the empty formula) prints Homebrew's own prefix.
+			foreach (array_merge($formulae, ['']) as $formula)
 			{
-				continue;
-			}
+				$output  = [];
+				$command = 'brew --prefix' . ($formula === '' ? '' : (' ' . escapeshellarg($formula))) . ' 2>/dev/null';
+				$result  = @exec($command, $output, $resultCode);
 
-			return [$result];
+				if ($result === false || $resultCode !== 0 || trim($result) === '')
+				{
+					continue;
+				}
+
+				$ret[] = rtrim(trim($result), DIRECTORY_SEPARATOR)
+				         . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php';
+			}
 		}
 
-		return [];
+		$defaultPrefixes = strtoupper(PHP_OS_FAMILY) === 'DARWIN'
+			? ['/opt/homebrew', '/usr/local']
+			: ['/home/linuxbrew/.linuxbrew'];
+
+		foreach ($defaultPrefixes as $prefix)
+		{
+			foreach ($formulae as $formula)
+			{
+				$ret[] = $prefix . '/opt/' . $formula . '/bin/php';
+			}
+		}
+
+		return array_values(array_unique($ret));
 	}
 
 	/**

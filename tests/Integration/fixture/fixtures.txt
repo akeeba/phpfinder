@@ -20,3 +20,5 @@
 /opt/cpanel/ea-php84/root/usr/bin/php       8.4  php      cPanel EasyApache
 /opt/cpanel/ea-php80/root/usr/bin/php       8.2  php      MISLABELLED: cPanel for PHP 8.0 (there is no 8.0 image), for the x.0 candidate paths
 /opt/pf-ua/php84                            8.4  php      registered with update-alternatives in the "php" group
+/opt/pf-brew/opt/php@8.3/bin/php            8.3  php      Homebrew: the php@8.3 formula, under the prefix of the fake `brew` in /opt/pf-brew/bin (provision.sh)
+/home/linuxbrew/.linuxbrew/opt/php@8.4/bin/php  8.4  php  Homebrew's default Linux prefix, searched without `brew` in the PATH

@@ -46,3 +46,20 @@ mkdir -p /opt/pf-ua/link
 update-alternatives --install /opt/pf-ua/link/php php /opt/pf-ua/php84 50 >/dev/null
 [ "$(update-alternatives --list php)" = "/opt/pf-ua/php84" ] || { echo "provision: update-alternatives fixture failed" >&2; exit 1; }
 echo "  update-alternatives --list php -> /opt/pf-ua/php84"
+
+# A fake `brew`, answering `brew --prefix [<formula>]` like the real one, for a Homebrew in /opt/pf-brew: a
+# prefix which is NOT one of the default prefixes PHPFinder knows, so only asking `brew` can find
+# /opt/pf-brew/opt/php@8.3/bin/php. It is only in the PATH when a test puts /opt/pf-brew/bin there. It logs
+# its arguments to /tmp/pf-brew.log, so a test can tell whether it ran.
+mkdir -p /opt/pf-brew/bin
+cat > /opt/pf-brew/bin/brew <<'BREW'
+#!/bin/sh
+echo "$*" >> /tmp/pf-brew.log
+[ "$1" = '--prefix' ] || exit 1
+[ -z "${2:-}" ] && { echo /opt/pf-brew; exit 0; }
+echo "/opt/pf-brew/opt/$2"
+BREW
+chmod 0755 /opt/pf-brew/bin/brew
+[ "$(/opt/pf-brew/bin/brew --prefix php@8.3)" = "/opt/pf-brew/opt/php@8.3" ] || { echo "provision: fake brew failed" >&2; exit 1; }
+rm -f /tmp/pf-brew.log
+echo "  /opt/pf-brew/bin/brew --prefix php@8.3 -> /opt/pf-brew/opt/php@8.3"
