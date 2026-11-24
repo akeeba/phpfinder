@@ -62,6 +62,7 @@ the binary's own loader and libraries makes it independent of the runner image's
 | `/opt/bin/php84` | **8.2** CLI | `validateVersion` (a binary named for the wrong version) |
 | `/usr/local/bin/php84-cli` | 8.4 CLI | `extendedBinaryNameSearch` |
 | `/opt/cpanel/ea-php84/root/usr/bin/php` | 8.4 CLI | cPanel |
+| `/opt/cpanel/ea-php80/root/usr/bin/php` | **8.2** CLI | cPanel's path for PHP 8.0 (no 8.0 image): the candidate paths for a `.0` minor version |
 | `/opt/cloudlinux/alt-php83/root/usr/bin/php` | 8.3 CLI | CloudLinux |
 | `/opt/pf-ua/php84` | 8.4 CLI | `update-alternatives` (registered in the `php` group) |
 

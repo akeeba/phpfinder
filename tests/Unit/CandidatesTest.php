@@ -47,6 +47,13 @@ final class CandidatesTest extends TestCase
 			['8.4.12', [8, 4]],
 			['7.4.33-dev', [7, 4]],
 			['10.11', [10, 11]],
+			['8.0', [8, 0]],
+			['7.0.33', [7, 0]],
+			['8.0RC1', [8, 0]],
+			['7.4-dev', [7, 4]],
+			// A second component which does not start with a digit is no minor version at all.
+			['8.', [8, null]],
+			['8.x', [8, null]],
 		];
 
 		foreach ($cases as $case)
@@ -63,17 +70,53 @@ final class CandidatesTest extends TestCase
 
 	public function testMajorMinorKeepsAZeroMinor(): void
 	{
-		$this->expectKnownBug(
-			'getMajorMinor() does `$minor ?: null`, so a minor version of 0 becomes NULL: "8.0" is treated as '
-			. 'the bare major "8". PHP 8.0 / 7.0 are then searched as php8 / php7 instead of php80 / php8.0, and '
-			. 'the cPanel, CloudLinux and Plesk paths (which need a minor) are skipped altogether.',
-			function () {
-				$finder = new PHPFinder();
+		// Used to be `$minor ?: null`, so "8.0" was treated as the bare major "8": PHP 8.0 / 7.0 were searched
+		// as php8 / php7 instead of php80 / php8.0, and the cPanel, CloudLinux and Plesk paths (which need a
+		// minor) were skipped altogether.
+		$finder = new PHPFinder();
 
-				$this->assertSame([8, 0], $this->callPrivate($finder, 'getMajorMinor', ['8.0']));
-				$this->assertContains('php80', $this->callPrivate($finder, 'getBinaryNamesForVersion', ['8.0']));
-			}
-		);
+		$this->assertSame([8, 0], $this->callPrivate($finder, 'getMajorMinor', ['8.0']));
+
+		$names = $this->callPrivate($finder, 'getBinaryNamesForVersion', ['8.0']);
+
+		foreach (['php80', 'php8.0', 'ea-php80', 'alt-php80', 'php80-cli', 'php8.0-cli', 'php-8.0'] as $name)
+		{
+			$this->assertContains($name, $names);
+		}
+
+		$this->assertNotContains('php8', $names, 'PHP 8.0 is not searched for as the bare major');
+	}
+
+	public function testSoftwareSpecificPathsForAZeroMinor(): void
+	{
+		$finder = new PHPFinder();
+
+		switch (strtoupper(PHP_OS_FAMILY))
+		{
+			case 'LINUX':
+				$this->assertSame(
+					['/opt/cpanel/ea-php80/root/usr/bin/php', '/usr/bin/ea-php80', '/usr/local/bin/ea-php80'],
+					$this->callPrivate($finder, 'pathsCPanel', ['8.0'])
+				);
+				$this->assertSame(
+					['/opt/cloudlinux/alt-php80/root/usr/bin/php', '/usr/bin/alt-php80', '/usr/local/bin/alt-php80'],
+					$this->callPrivate($finder, 'pathsCloudLinux', ['8.0'])
+				);
+				// No break: Plesk has the same paths on Linux and BSD.
+
+			case 'BSD':
+				$this->assertSame(
+					['/opt/plesk/php/8.0/bin/php', '/usr/bin/php8.0', '/usr/local/bin/php8.0'],
+					$this->callPrivate($finder, 'pathsPlesk', ['8.0.30'])
+				);
+				break;
+
+			default:
+				$this->markTestSkipped(
+					'The cPanel, CloudLinux and Plesk paths only exist on Linux and BSD. The integration suite checks '
+					. 'the cPanel one in a Linux container.'
+				);
+		}
 	}
 
 	public function testBinaryNamesWithoutAVersion(): void

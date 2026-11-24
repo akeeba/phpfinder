@@ -848,6 +848,9 @@ final class PHPFinder
 	 *
 	 * @param   string|null  $version  The version to parse.
 	 *
+	 * A minor version of 0 is kept: "8.0" is [8, 0], not [8, null]. The minor version is NULL when there is no
+	 * second component, or when it does not start with a digit ("8.", "8.x").
+	 *
 	 * @return  array  The major and minor versions. NULL elements if invalid version.
 	 * @since   1.0.0
 	 */
@@ -862,12 +865,13 @@ final class PHPFinder
 		}
 
 		$parts = explode('.', $version);
-		$major = @intval($parts[0]);
-		$minor = $parts[1] ?? null;
-		$minor = $minor === null ? null : @intval($minor);
+		$major = @intval($parts[0]) ?: null;
 
-		$major = $major ?: null;
-		$minor = $major === null ? null : ($minor ?: null);
+		// Not `?: null`: that would turn the 0 of "8.0" into "no minor version".
+		if ($major !== null && isset($parts[1]) && preg_match('/^\d+/', $parts[1]))
+		{
+			$minor = (int) $parts[1];
+		}
 
 		return [$major, $minor];
 	}

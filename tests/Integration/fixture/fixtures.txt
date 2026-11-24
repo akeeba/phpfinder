@@ -18,4 +18,5 @@
 /opt/bin/php84                              8.2  php      MISLABELLED: named for 8.4 but really 8.2, ahead of /usr/local/bin/php84-cli
 /usr/local/bin/php84-cli                    8.4  php      an extended binary name
 /opt/cpanel/ea-php84/root/usr/bin/php       8.4  php      cPanel EasyApache
+/opt/cpanel/ea-php80/root/usr/bin/php       8.2  php      MISLABELLED: cPanel for PHP 8.0 (there is no 8.0 image), for the x.0 candidate paths
 /opt/pf-ua/php84                            8.4  php      registered with update-alternatives in the "php" group
