@@ -66,7 +66,7 @@ final class WorkingDirectoryTest extends AbstractWindowsTestCase
 		// The drive list, from each tool in turn: wmic, fsutil, PowerShell.
 		foreach ([[], ['wmic' => true], ['wmic' => true, 'fsutil' => true]] as $hidden)
 		{
-			self::hideTools($hidden);
+			$this->hideToolsAndCheck($hidden);
 
 			$response = $this->probe('drives', null, [], self::PATH_SYSTEM, [], null, $cwd);
 

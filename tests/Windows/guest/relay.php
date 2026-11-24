@@ -14,13 +14,14 @@
  *
  * The host-side suite (AbstractWindowsTestCase) keeps that SSH session open and writes one JSON request per line:
  *
- *   {"runner": "8.5" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
+ *   {"runner": "8.5" | "8.4-x86" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
  *
  * With "noProcOpen", the probe runs with proc_open() disabled (-d disable_functions=proc_open), so that the library
  * falls back to exec(); not for "iis", whose php.ini the relay cannot change per request.
  *
- * {"hidden": {"wmic": true, "fsutil": false}} hides (renames) or restores Windows' own WMIC.exe and fsutil.exe, for
- * the tests of a Windows without them (provision.ps1 made them renamable; the VM's snapshot restores them anyway).
+ * {"hidden": {"wmic": true, "fsutil": false}} hides (renames) or restores Windows' own WMIC.exe and fsutil.exe, both
+ * the System32 and the SysWOW64 copies, for the tests of a Windows without them (provision.ps1 made them renamable; the
+ * VM's snapshot restores them anyway).
  * It answers {"status": 0, "stdout": "", "stderr": ""}, or a status of 1 and the error.
  *
  * For a PHP version, the relay runs C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request> in a new process, without
@@ -76,7 +77,7 @@ while (($line = fgets($stdin)) !== false)
 
 		$answer = ['status' => $status === 200 ? 0 : $status, 'stdout' => (string) $body, 'stderr' => ''];
 	}
-	elseif (preg_match('/^\d+\.\d+$/', $runner) && is_file('C:\\pf\\run\\' . $runner . '\\php.exe'))
+	elseif (preg_match('/^\d+\.\d+(-x86)?$/', $runner) && is_file('C:\\pf\\run\\' . $runner . '\\php.exe'))
 	{
 		$errFile = tempnam(sys_get_temp_dir(), 'pfe');
 		$process = proc_open(
@@ -106,13 +107,15 @@ while (($line = fgets($stdin)) !== false)
 }
 
 /**
- * Hide (rename to <name>.pf-hidden) or restore Windows' own wmic and fsutil.
+ * Hide (rename to <name>.pf-hidden) or restore Windows' own wmic and fsutil: the 64-bit copies in System32 and the
+ * 32-bit ones in SysWOW64, which a 32-bit (x86) runner sees at System32 instead. The relay is 64-bit: it sees both
+ * where they are. A Windows without wmic has neither copy.
  *
  * @param   bool[]  $hidden  wmic and/or fsutil => whether it is to be hidden
  */
 function hideTools(array $hidden): array
 {
-	$tools = ['wmic' => 'C:\\Windows\\System32\\wbem\\WMIC.exe', 'fsutil' => 'C:\\Windows\\System32\\fsutil.exe'];
+	$tools = ['wmic' => 'wbem\\WMIC.exe', 'fsutil' => 'fsutil.exe'];
 
 	foreach ($hidden as $tool => $hide)
 	{
@@ -121,20 +124,25 @@ function hideTools(array $hidden): array
 			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: unknown tool ' . $tool];
 		}
 
-		[$from, $to] = $hide ? [$tools[$tool], $tools[$tool] . '.pf-hidden'] : [$tools[$tool] . '.pf-hidden', $tools[$tool]];
-
-		clearstatcache();
-
-		if (is_file($from) && !@rename($from, $to))
+		foreach (['System32', 'SysWOW64'] as $directory)
 		{
-			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not rename ' . $from . ': ' . (error_get_last()['message'] ?? '')];
-		}
+			$path = 'C:\\Windows\\' . $directory . '\\' . $tools[$tool];
 
-		clearstatcache();
+			[$from, $to] = $hide ? [$path, $path . '.pf-hidden'] : [$path . '.pf-hidden', $path];
 
-		if (is_file($tools[$tool]) === (bool) $hide)
-		{
-			return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: ' . $tools[$tool] . ($hide ? ' is still there' : ' is missing')];
+			clearstatcache();
+
+			if (is_file($from) && !@rename($from, $to))
+			{
+				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not rename ' . $from . ': ' . (error_get_last()['message'] ?? '')];
+			}
+
+			clearstatcache();
+
+			if (is_file($path) === (bool) $hide)
+			{
+				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: ' . $path . ($hide ? ' is still there' : ' is missing')];
+			}
 		}
 	}
 

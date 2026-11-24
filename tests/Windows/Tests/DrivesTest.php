@@ -51,7 +51,7 @@ final class DrivesTest extends AbstractWindowsTestCase
 	public function testDrivesFromFsutilWithoutWmic(): void
 	{
 		// Windows' own fsutil, with WMIC.exe gone, as on Windows 11 24H2 and Windows Server 2025.
-		self::hideTools(['wmic' => true]);
+		$this->hideToolsAndCheck(['wmic' => true]);
 
 		$this->assertDrives(self::ALL_DRIVES, null);
 	}
@@ -59,7 +59,7 @@ final class DrivesTest extends AbstractWindowsTestCase
 	public function testDrivesFromPowerShellWithoutWmicAndFsutil(): void
 	{
 		// Windows' own PowerShell.
-		self::hideTools(['wmic' => true, 'fsutil' => true]);
+		$this->hideToolsAndCheck(['wmic' => true, 'fsutil' => true]);
 
 		$this->assertDrives(self::ALL_DRIVES, null);
 	}
@@ -128,7 +128,7 @@ final class DrivesTest extends AbstractWindowsTestCase
 
 	public function testTheSecondDriveIsSearchedWithoutWmic(): void
 	{
-		self::hideTools(['wmic' => true]);
+		$this->hideToolsAndCheck(['wmic' => true]);
 
 		$this->assertSame(
 			self::SECOND_DRIVE_85,

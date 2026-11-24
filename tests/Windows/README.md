@@ -24,7 +24,7 @@ and the Windows code paths are checked against the real thing.
 ## Quick start
 
 ```bash
-tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, then IIS
+tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, then IIS
 WINDOWS_KVM_HOST=<ssh host> composer test:windows  # the same
 tests/Windows/run.sh --host=<ssh host> --runner=7.2,iis --filter DrivesTest
 ```
@@ -36,7 +36,7 @@ There is no default host: without `--host` or `WINDOWS_KVM_HOST`, `run.sh` stops
 | Option | What it does |
 |---|---|
 | `--host=HOST` | The KVM host (an SSH destination, or `local`). Default: `WINDOWS_KVM_HOST` |
-| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 iis` (default: all) |
+| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 iis` (default: all) |
 | `-f`, `--filter=NAME` | Passed to PHPUnit as `--filter` |
 | `--src=DIR` | Put this directory's `PHPFinder.php` and `Configuration.php` into the guest instead of `src/`, e.g. a revision exported with `git show <rev>:src/…`, to show a test failing on the code before a fix |
 | `--keep-vm` | Leave the VM running afterwards, to iterate with `PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter …` |
@@ -54,7 +54,8 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 2. `run.sh` copies `src/` and `guest/` into `C:\pf` and runs `guest/provision.ps1` there, which
    - downloads everything in `downloads` in parallel with `curl.exe`, and checks each file's SHA-256 with
      `Get-FileHash` (the pins are the hashes of the bytes actually downloaded; see the comments in that file);
-   - installs the Visual C++ 14.51 runtime (PHP 8.6's `vs18` build refuses the VM's 14.44 one) and unpacks one PHP per
+   - installs the Visual C++ 14.51 runtime, x64 (PHP 8.6's `vs18` build refuses the VM's 14.44 one) and x86 (for the
+     32-bit runners), and unpacks one PHP per
      version into `C:\pf\run\<X.Y>`, where no search strategy looks: the **runners**;
    - attaches a VHD as **`D:`** (see "A second drive" below);
    - copies the top-level files of real PHP builds (`php.exe`, `php-cgi.exe`, the DLLs; no extensions, everything runs
@@ -104,7 +105,10 @@ prints" for why). The `PATH` does not matter to them, so the tests change what r
 - **A Windows without `wmic`** (Windows 11 24H2, Windows Server 2025), or without `fsutil`, is the real one with
   `WMIC.exe` or `fsutil.exe` renamed for the duration of a test: `hideTools()` asks `relay.php`, which runs as
   Administrator, to rename them (`provision.ps1` takes them over from TrustedInstaller first), and every such test puts
-  them back in `tearDown()`. The next start of the VM restores its snapshot anyway.
+  them back in `tearDown()`. The next start of the VM restores its snapshot anyway. Both copies: `System32`'s and
+  `SysWOW64`'s, which is what a 32-bit runner sees at `System32`. `hideToolsAndCheck()` then asks the runner whether
+  it still sees them where the library looks (the probe's `tools` call): hiding only `System32`'s let the 32-bit
+  runners use `SysWOW64`'s `wmic`, and the tests of a Windows without it tested nothing.
 - **Tools which misbehave** are stand-ins in a Windows directory of their own, `C:\pf\fakewin\<case>`, which the test
   gives to the library instead of `C:\Windows`, through PHPFinder's private `$windowsDirectory` (the probe sets it,
   as the unit tests do), with a copy of Windows' own `cmd.exe` in its `System32`. Not through `SystemRoot`: the
@@ -170,14 +174,25 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
   `iisreset` in between, failed at 1 both times and worked at 0. Why going through `cmd.exe` avoids the failure was not
   investigated. Hence `cmd.exe` for the tools.
 - PowerShell's `[IO.DriveInfo]::GetDrives()` takes 1.5 to 2 seconds to start.
+- A 32-bit PHP runs under WoW64 (the guest has the `WoW64-Support` feature): `PHP_INT_SIZE` is 4,
+  `PROCESSOR_ARCHITECTURE` is `x86` and `PROCESSOR_ARCHITEW6432` is `AMD64` (unset in a 64-bit process), and it sees
+  `C:\Windows\SysWOW64` at `C:\Windows\System32`. `SysWOW64` has a 32-bit copy of every tool PHPFinder runs, `cmd.exe`
+  included, and they print the same as the 64-bit ones: the library works unchanged (the whole suite on `7.2-x86` and
+  `8.4-x86`). Only a 32-bit process sees `C:\Windows\Sysnative`, the real `System32`. Checked by hand, not by
+  `FactsTest`: from a 32-bit PHP, `Sysnative\fsutil.exe` started directly or through the 32-bit `System32\cmd.exe`
+  works, and so does the 64-bit `Sysnative\cmd.exe` running `System32\fsutil.exe` (it sees the real `System32`), but
+  `Sysnative\cmd.exe` running `Sysnative\…` fails (`The system cannot find the path specified.`): a 64-bit `cmd.exe`
+  does not see `Sysnative`.
 
 ## The PHP versions, and why
 
 `composer.json` allows PHP `>=7.2.0 <8.7`. The runners are every minor version from **7.2** (the floor; PHP 7 runs
 `exec()` through `cmd.exe /c`, PHP 8 through `cmd.exe /s /c`, and `asort()` is not stable before 8.0) through **8.6** (the
 newest), except 7.3 and 7.4, plus **IIS** (FastCGI, PHP 8.4), which is how a web application runs the library. PHP 8.0
-is covered here although the Docker suite cannot cover it. All are 64-bit non-thread-safe builds; thread-safe and 32-bit
-builds are not tested.
+is covered here although the Docker suite cannot cover it. All are 64-bit non-thread-safe builds, except the two
+32-bit (x86) ones, **7.2-x86** (the floor) and **8.4-x86** (a current release), which run under WoW64 (see "What the
+real Windows prints"). Thread-safe builds, and IIS running a 32-bit PHP (an application pool with 32-bit applications
+enabled), are not tested.
 
 Each PHP version downloads 25 to 40 MB per run (there is no cache across runs), all in parallel: a few seconds on a fast
 connection.
@@ -190,6 +205,7 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 ## Not covered
 
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
-- Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed.
+- Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed (both copies, assuming
+  Windows removes the 32-bit one with the 64-bit one).
 - `cmd.exe` with delayed expansion turned on in the registry (`!NAME!` would expand like `%NAME%` through `exec()`).
 - A server whose system drive is not `C:`.

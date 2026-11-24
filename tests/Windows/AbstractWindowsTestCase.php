@@ -90,7 +90,7 @@ abstract class AbstractWindowsTestCase extends TestCase
 	private static $relayErrors;
 
 	/**
-	 * The runner of this PHPUnit run: a PHP version (e.g. 8.5) or "iis".
+	 * The runner of this PHPUnit run: a PHP version (e.g. 8.5), a 32-bit PHP version (e.g. 8.4-x86) or "iis".
 	 */
 	protected static function runnerName(): string
 	{
@@ -196,6 +196,33 @@ abstract class AbstractWindowsTestCase extends TestCase
 		{
 			self::fail('Could not hide or restore ' . implode(', ', array_keys($hidden)) . ': ' . $answer['stderr']);
 		}
+	}
+
+	/**
+	 * Hide or restore tools as hideTools() does, then check that this run's runner sees them so at the paths PHPFinder
+	 * runs them from. A 32-bit runner sees SysWOW64's copies at C:\\Windows\\System32, not System32's own.
+	 */
+	protected function hideToolsAndCheck(array $hidden): void
+	{
+		self::hideTools($hidden);
+
+		$response = $this->probe('tools', null);
+
+		foreach ($hidden as $tool => $hide)
+		{
+			$this->assertSame(
+				!$hide, $response['result'][$tool],
+				sprintf('The %d-bit runner %s %s', $response['bits'], $hide ? 'still sees' : 'does not see', $tool)
+			);
+		}
+	}
+
+	/**
+	 * Whether this run's runner is a 32-bit (x86) PHP, which runs under WoW64.
+	 */
+	protected static function isX86(): bool
+	{
+		return substr(self::runnerName(), -4) === '-x86';
 	}
 
 	/**

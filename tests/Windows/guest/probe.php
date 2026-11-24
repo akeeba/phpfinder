@@ -15,12 +15,12 @@
  *
  * and IIS runs it through iis-probe.php, with the request in the query string.
  *
- * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths" | "drives" | "analyze" | "facts",
+ * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths" | "drives" | "analyze" | "facts" | "tools",
  *            "version": "8.3" | null, "config": {"useWhere": true, …}, "path": "C:\\pf\\path-a;…" | null,
  *            "env": {"plesk_dir": "…"}, "arg": "C:\\…\\php.exe" (analyze only), "cwd": "C:\\…" | null,
  *            "windowsDirectory": "C:\\pf\\fakewin\\…" | null}
  * Response: {"result": …, "diagnostics": ["…"], "runner": "8.5", "runnerVersion": "8.5.13", "sapi": "cli",
- *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe", "ran": ["where", …], "procOpen": true}
+ *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe", "bits": 64, "ran": ["where", …], "procOpen": true}
  *
  * "windowsDirectory" sets PHPFinder's private $windowsDirectory, where it runs Windows' own tools from (when the
  * library has it: not an older one given to run.sh with --src). "ran" lists the stand-in tools (provision.ps1's fake
@@ -30,6 +30,7 @@
  *
  * "drives" and "analyze" call PHPFinder's private getWindowsDrives() and analyzePHPVersion() through a bound
  * closure, as the unit tests do. "facts" returns what the Windows tools print, byte for byte, as PHP's exec() sees it.
+ * "tools" returns which of Windows' tools exist at the paths PHPFinder runs them from, as this runner sees them.
  *
  * Every PHP diagnostic the call raises (warnings, notices, deprecations; not those silenced with @) is collected and
  * returned, so the suite can assert that the library runs cleanly on each PHP version.
@@ -158,8 +159,30 @@ $raw = function ($command) {
 	return ['stdout' => bin2hex($stdout), 'stderr' => bin2hex($stderr)];
 };
 
+/**
+ * Which of Windows' tools PHPFinder runs exist in a directory of the Windows directory, as this runner sees it: a
+ * 32-bit runner sees SysWOW64 at System32 (WoW64 file system redirection).
+ */
+$tools = function ($directory) {
+	return array_map(
+		function ($tool) use ($directory) {
+			return is_file(getenv('SystemRoot') . '\\' . $directory . '\\' . $tool);
+		},
+		[
+			'where'      => 'where.exe',
+			'wmic'       => 'wbem\\WMIC.exe',
+			'fsutil'     => 'fsutil.exe',
+			'powershell' => 'WindowsPowerShell\\v1.0\\powershell.exe',
+		]
+	);
+};
+
 switch ($request['call'])
 {
+	case 'tools':
+		$result = $tools('System32');
+		break;
+
 	case 'getBestPath':
 		$result = $finder->getBestPath($version);
 		break;
@@ -189,17 +212,11 @@ switch ($request['call'])
 		$result = [
 			'systemDrive'  => getenv('SYSTEMDRIVE'),
 			'systemRoot'   => getenv('SystemRoot'),
-			'tools'        => array_map(
-				function ($tool) {
-					return is_file(getenv('SystemRoot') . '\\' . $tool);
-				},
-				[
-					'where'      => 'System32\\where.exe',
-					'wmic'       => 'System32\\wbem\\WMIC.exe',
-					'fsutil'     => 'System32\\fsutil.exe',
-					'powershell' => 'System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-				]
-			),
+			'tools'        => $tools('System32'),
+			'toolsWow64'   => $tools('SysWOW64'),
+			'bits'         => PHP_INT_SIZE * 8,
+			'architew6432' => getenv('PROCESSOR_ARCHITEW6432'),
+			'sysnative'    => is_dir(getenv('SystemRoot') . '\\Sysnative'),
 			'path'         => getenv('PATH'),
 			'wmicPath'     => trim((string) @exec('where wmic 2>NUL')),
 			'wmic'         => $run('wmic logicaldisk get name'),
@@ -237,6 +254,7 @@ echo json_encode(
 		'runnerVersion' => PHP_VERSION,
 		'sapi'          => PHP_SAPI,
 		'phpBinary'     => PHP_BINARY,
+		'bits'          => PHP_INT_SIZE * 8,
 		'ran'           => array_map(
 			function ($marker) {
 				return strtolower(basename($marker, '.ran'));

@@ -41,6 +41,25 @@ final class FactsTest extends AbstractWindowsTestCase
 		);
 	}
 
+	public function testA32BitRunnerRunsUnderWow64(): void
+	{
+		// A 32-bit PHP on 64-bit Windows runs under WoW64: PROCESSOR_ARCHITEW6432 names the real architecture, and only a
+		// 32-bit process sees C:\\Windows\\Sysnative, the real System32, while it sees SysWOW64 at System32.
+		$this->assertSame(self::isX86() ? 32 : 64, $this->facts()['bits']);
+		$this->assertSame(self::isX86() ? 'AMD64' : false, $this->facts()['architew6432']);
+		$this->assertSame(self::isX86(), $this->facts()['sysnative']);
+	}
+
+	public function testEveryToolHasA32BitCopy(): void
+	{
+		// What a 32-bit runner runs at C:\\Windows\\System32\\…: the guest (Server Core with WoW64-Support) has a 32-bit
+		// copy of every tool PHPFinder runs, cmd.exe too (checked by hand).
+		$this->assertSame(
+			['where' => true, 'wmic' => true, 'fsutil' => true, 'powershell' => true],
+			$this->facts()['toolsWow64']
+		);
+	}
+
 	public function testWmicIsInTheSystemPath(): void
 	{
 		$this->assertSame('c:\\windows\\system32\\wbem\\wmic.exe', strtolower($this->facts()['wmicPath']));

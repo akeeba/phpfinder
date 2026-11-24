@@ -64,7 +64,7 @@ final class ExecFallbackTest extends AbstractWindowsTestCase
 		// wmic, then fsutil without wmic, then PowerShell without either: Windows' own tools, through cmd.exe.
 		foreach ([[], ['wmic' => true], ['wmic' => true, 'fsutil' => true]] as $hidden)
 		{
-			self::hideTools($hidden);
+			$this->hideToolsAndCheck($hidden);
 
 			$response = $this->probe('drives', null, [], self::PATH_SYSTEM, [], null, null, self::NO_PROC_OPEN);
 

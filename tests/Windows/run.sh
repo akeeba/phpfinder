@@ -17,7 +17,7 @@
 # Usage:  tests/Windows/run.sh --host=HOST [options] [-- <extra PHPUnit args>]
 #       --host=HOST        The KVM host: an SSH host with KVM (or `local` on such a Linux machine). Default: the
 #                          WINDOWS_KVM_HOST environment variable; there is no other default.
-#       --runner=LIST      Only these runners, space or comma separated (e.g. 7.2,8.6,iis). Default: all of them
+#       --runner=LIST      Only these runners, space or comma separated (e.g. 7.2,8.6,8.4-x86,iis). Default: all
 #   -f, --filter=NAME      Passed to PHPUnit as --filter
 #       --src=DIR          Copy this directory's PHPFinder.php and Configuration.php into the guest instead of
 #                          src/, e.g. an older revision, to show a test failing on the code before a fix
@@ -34,8 +34,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # The shared IIS test VM, used by every Akeeba project which needs a real Windows.
 IISVM="${REPO_ROOT}/../buildfiles/vm/iis/iisvm.sh"
 
-# Every PHP version provision.ps1 installs (downloads, plus the VM's own 8.4), then IIS (FastCGI, PHP 8.4).
-ALL_RUNNERS="7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 iis"
+# Every PHP version provision.ps1 installs (downloads, plus the VM's own 8.4), the 32-bit ones (<X.Y>-x86, under
+# WoW64), then IIS (FastCGI, PHP 8.4).
+ALL_RUNNERS="7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 iis"
 
 if [ -t 1 ]; then C_B='\033[0;34m'; C_G='\033[0;32m'; C_R='\033[0;31m'; C_Y='\033[0;33m'; C_0='\033[0m'; else C_B=; C_G=; C_R=; C_Y=; C_0=; fi
 log()  { printf "${C_B}==>${C_0} %s\n" "$*"; }

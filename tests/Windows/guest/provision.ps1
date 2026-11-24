@@ -52,13 +52,19 @@ foreach ($pin in $pins) {
 # ---------------------------------------------------------------------------------------------------------------------
 # 2. Runtime and runners
 # ---------------------------------------------------------------------------------------------------------------------
-$p = Start-Process (Join-Path $dl 'vc_redist.x64.exe') -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
-if ($p.ExitCode -notin 0, 1638, 3010) { throw "vc_redist exit code $($p.ExitCode)" }
-"VC++ runtime: $((Get-Item C:\Windows\System32\vcruntime140.dll).VersionInfo.FileVersion)"
+# The x64 runtime for the x64 runners, the x86 one (in SysWOW64) for the x86 runners.
+foreach ($arch in 'x64', 'x86') {
+    $p = Start-Process (Join-Path $dl "vc_redist.$arch.exe") -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
+    if ($p.ExitCode -notin 0, 1638, 3010) { throw "vc_redist.$arch exit code $($p.ExitCode)" }
+}
+"VC++ runtime: x64 $((Get-Item C:\Windows\System32\vcruntime140.dll).VersionInfo.FileVersion), x86 $((Get-Item C:\Windows\SysWOW64\vcruntime140.dll).VersionInfo.FileVersion)"
 
+# One runner per zip: <X.Y> for an x64 build, <X.Y>-x86 for an x86 (32-bit) one.
 $runners = @{}
 foreach ($pin in $pins | Where-Object Name -like 'php-*.zip') {
-    $version = [regex]::Match($pin.Name, '^php-(\d+\.\d+)\.').Groups[1].Value
+    $match = [regex]::Match($pin.Name, '^php-(\d+\.\d+)\.\d+-nts-Win32-[A-Za-z]+\d+-(x64|x86)\.zip$')
+    if (-not $match.Success) { throw "$($pin.Name): not a PHP build name provision.ps1 knows" }
+    $version = $match.Groups[1].Value + $(if ($match.Groups[2].Value -eq 'x86') { '-x86' } else { '' })
     Expand-Archive (Join-Path $dl $pin.Name) "$pf\run\$version"
     $runners[$version] = "$pf\run\$version"
 }
@@ -68,7 +74,8 @@ $runners['8.4'] = "$pf\run\8.4"
 
 foreach ($version in $runners.Keys | Sort-Object) {
     $banner = (& "$($runners[$version])\php.exe" -n -v 2>&1 | Select-Object -First 1) -as [string]
-    if ($banner -notlike "PHP $version.* (cli)*") { throw "runner $version does not run: $banner" }
+    $arch   = if ($version -like '*-x86') { 'x86' } else { 'x64' }
+    if ($banner -notlike "PHP $($version -replace '-x86$', '').* (cli)*$arch*") { throw "runner $version does not run: $banner" }
     "runner ${version}: $banner"
 }
 
@@ -231,8 +238,10 @@ New-FakeTool "$pf\planted-cmd" 'cmd.exe'
 foreach ($dir in "$pf\planted", "$pf\planted-cmd") { & icacls $dir /grant 'Everyone:(OI)(CI)M' | Out-Null }
 
 # Let the suite hide wmic and fsutil for real (a Windows without wmic: Windows 11 24H2, Windows Server 2025), by
-# renaming them (relay.php). They belong to TrustedInstaller; the VM's snapshot restores them on the next start.
-foreach ($tool in "$env:windir\$wmic", "$env:windir\$fsutil") {
+# renaming them (relay.php). They belong to TrustedInstaller; the VM's snapshot restores them on the next start. The
+# 32-bit copies in SysWOW64 too: that is what an x86 runner sees at C:\Windows\System32.
+foreach ($tool in $wmic, $fsutil, ($wmic -replace '^System32', 'SysWOW64'), ($fsutil -replace '^System32', 'SysWOW64')) {
+    $tool = "$env:windir\$tool"
     & takeown /f $tool /a | Out-Null
     & icacls $tool /grant 'Administrators:F' | Out-Null
 }
