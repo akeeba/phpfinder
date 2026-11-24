@@ -124,8 +124,8 @@ trait FakeSystem
 	/**
 	 * A configuration with every strategy OFF, so that a test can switch on exactly the ones it is about.
 	 *
-	 * Except the fixed UNIX paths (/usr/bin, /usr/local/bin, /opt/bin), which only osSpecific switches off, and
-	 * it is ON here. The fake PHP binaries report fictional versions which no host binary there matches.
+	 * That includes the fixed UNIX paths (/usr/bin, /usr/local/bin, /opt/bin): useFixedPaths is OFF, while
+	 * osSpecific is ON.
 	 *
 	 * @param   array  $overrides  Properties to set, through the public fluent setters.
 	 */
@@ -136,6 +136,7 @@ trait FakeSystem
 			->setOsSpecific(true)
 			->setSoftwareSpecific(false)
 			->setExtendedBinaryNameSearch(true)
+			->setUseFixedPaths(false)
 			->setUseWhich(false)
 			->setUseUpdateAlternatives(false)
 			->setUseWhereIs(false)

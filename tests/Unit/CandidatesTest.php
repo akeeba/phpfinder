@@ -226,6 +226,10 @@ final class CandidatesTest extends TestCase
 
 		$this->assertSame([], $this->callPrivate(new PHPFinder(Configuration::make()->setOsSpecific(false)), 'pathsUNIX', ['8.4']));
 
+		// useFixedPaths switches them off on their own, osSpecific stays the master switch.
+		$this->assertSame([], $this->callPrivate(new PHPFinder(Configuration::make()->setUseFixedPaths(false)), 'pathsUNIX', ['8.4']));
+		$this->assertSame([], $this->callPrivate(new PHPFinder(Configuration::make()->setUseFixedPaths(false)), 'pathsUNIX', [null]));
+
 		// useWhich only controls running `which`. It used to switch the fixed UNIX paths off too.
 		$this->assertSame($paths, $this->callPrivate(new PHPFinder(Configuration::make()->setUseWhich(false)), 'pathsUNIX', ['8.4']));
 	}

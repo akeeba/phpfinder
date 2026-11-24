@@ -25,7 +25,7 @@ The environments currently supported are:
 * Generic Windows server, including PHP installations in C:\PHP
 * Generic macOS server
 
-**Security note**. Unless you disable the validation options, this library _executes_ every candidate binary it finds (with `-v`) to check its version and that it is the PHP CLI. That includes binaries found in well-known directories which may be writable by other users, e.g. `d:\PHP` or `d:\PHP8.3` on any Windows drive, `C:\PHP`, or the Program Files directories. On a server where untrusted users can create files in those locations, disable the `usePHPCommonWinDirsSearch` option (and keep `osSpecific` and `softwareSpecific` off if you do not need them), or make sure only administrators can write there.
+**Security note**. Unless you disable the validation options, this library _executes_ every candidate binary it finds (with `-v`) to check its version and that it is the PHP CLI. That includes binaries found in well-known directories which may be writable by other users, e.g. `d:\PHP` or `d:\PHP8.3` on any Windows drive, `C:\PHP`, or the Program Files directories. On a server where untrusted users can create files in those locations, disable the `usePHPCommonWinDirsSearch` option (on UNIX-like systems, the `useFixedPaths` option, which searches `/usr/bin`, `/usr/local/bin` and `/opt/bin`; and keep `osSpecific` and `softwareSpecific` off if you do not need them), or make sure only administrators can write there.
 
 You can try to locate a specific version of PHP (by `major.minor` or `major.minor.patch` version specification), or just any available PHP version.
 

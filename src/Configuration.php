@@ -20,6 +20,7 @@ namespace Akeeba\PHPFinder;
  * @property bool $osSpecific
  * @property bool $softwareSpecific
  * @property bool $extendedBinaryNameSearch
+ * @property bool $useFixedPaths
  * @property bool $useWhich
  * @property bool $useUpdateAlternatives
  * @property bool $useWhereIs
@@ -32,6 +33,7 @@ namespace Akeeba\PHPFinder;
  * @method self setOsSpecific(bool $value)
  * @method self setSoftwareSpecific(bool $value)
  * @method self setExtendedBinaryNameSearch(bool $value)
+ * @method self setUseFixedPaths(bool $value)
  * @method self setUseWhich(bool $value)
  * @method self setUseUpdateAlternatives(bool $value)
  * @method self setUseWhereIs(bool $value)
@@ -100,12 +102,28 @@ final class Configuration
 	private $extendedBinaryNameSearch = true;
 
 	/**
+	 * Look in the standard UNIX locations: /usr/bin, /usr/local/bin and /opt/bin.
+	 *
+	 * Available on Linux, BSD and macOS, and only when $osSpecific is enabled. Very fast: it only checks whether
+	 * a few fixed paths exist. It finds a PHP which is not in the PATH, and needs no external tool.
+	 *
+	 * Security note: PHPFinder executes the candidates it finds there, to validate them. If untrusted users can
+	 * write to these directories, disable this option.
+	 *
+	 * Default: true
+	 *
+	 * @var    bool
+	 * @since  1.0.2
+	 */
+	private $useFixedPaths = true;
+
+	/**
 	 * Use `which` to locate the PHP binary.
 	 *
 	 * Available on Linux and macOS. Moderately slow (about 0.1 second).
 	 *
 	 * This only controls running `which`. The standard locations, /usr/bin, /usr/local/bin and /opt/bin, are
-	 * searched whenever $osSpecific is enabled.
+	 * controlled by $useFixedPaths.
 	 *
 	 * Default: true
 	 *

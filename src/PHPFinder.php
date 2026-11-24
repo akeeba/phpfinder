@@ -230,6 +230,7 @@ final class PHPFinder
 	{
 		if (
 			!$this->configuration->osSpecific
+			|| !$this->configuration->useFixedPaths
 			|| !in_array($this->getOsFamily(), ['LINUX', 'BSD', 'DARWIN'])
 		)
 		{

@@ -25,6 +25,7 @@ final class ConfigurationTest extends TestCase
 		'osSpecific'                => true,
 		'softwareSpecific'          => true,
 		'extendedBinaryNameSearch'  => true,
+		'useFixedPaths'             => true,
 		'useWhich'                  => true,
 		'useUpdateAlternatives'     => true,
 		'useWhereIs'                => false,

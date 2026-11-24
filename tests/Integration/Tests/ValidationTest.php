@@ -23,7 +23,7 @@ final class ValidationTest extends AbstractIntegrationTestCase
 		$this->assertFixture(self::MISLABELLED_84, '8.2');
 		$this->assertFixture(self::EXTENDED_84, '8.4');
 
-		$response = $this->probe('getBestPathMeta', '8.4', self::isolated(['useWhich' => true]));
+		$response = $this->probe('getBestPathMeta', '8.4', self::isolated(['useFixedPaths' => true]));
 
 		$this->assertNoDiagnostics($response);
 		$this->assertSame(self::EXTENDED_84, $response['result']['path']);
@@ -32,7 +32,7 @@ final class ValidationTest extends AbstractIntegrationTestCase
 
 	public function testWithoutValidateVersionTheFirstCliWinsWhateverItsVersion(): void
 	{
-		$response = $this->probe('getBestPathMeta', '8.4', self::isolated(['useWhich' => true, 'validateVersion' => false]));
+		$response = $this->probe('getBestPathMeta', '8.4', self::isolated(['useFixedPaths' => true, 'validateVersion' => false]));
 
 		$this->assertNoDiagnostics($response);
 
@@ -46,9 +46,9 @@ final class ValidationTest extends AbstractIntegrationTestCase
 		// /usr/bin/php83 is PHP-FPM 8.3, and comes before /opt/bin/php83 (the 8.3 CLI) in candidate order.
 		$this->assertFixture(self::FPM_83, '8.3', 'fpm-fcgi');
 
-		$this->assertSame(self::UNIX_83, $this->bestPath('8.3', self::isolated(['useWhich' => true])));
+		$this->assertSame(self::UNIX_83, $this->bestPath('8.3', self::isolated(['useFixedPaths' => true])));
 
-		$response = $this->probe('getBestPathMeta', '8.3', self::isolated(['useWhich' => true, 'validateCli' => false]));
+		$response = $this->probe('getBestPathMeta', '8.3', self::isolated(['useFixedPaths' => true, 'validateCli' => false]));
 
 		$this->assertNoDiagnostics($response);
 		$this->assertSame(self::FPM_83, $response['result']['path']);
@@ -59,11 +59,11 @@ final class ValidationTest extends AbstractIntegrationTestCase
 	public function testExtendedBinaryNamesCanBeSwitchedOff(): void
 	{
 		$this->assertNull(
-			$this->bestPath('8.4', self::isolated(['useWhich' => true, 'extendedBinaryNameSearch' => false]))
+			$this->bestPath('8.4', self::isolated(['useFixedPaths' => true, 'extendedBinaryNameSearch' => false]))
 		);
 		$this->assertNotContains(
 			self::EXTENDED_84,
-			$this->probe('getPossiblePaths', '8.4', self::isolated(['useWhich' => true, 'extendedBinaryNameSearch' => false]))['result']
+			$this->probe('getPossiblePaths', '8.4', self::isolated(['useFixedPaths' => true, 'extendedBinaryNameSearch' => false]))['result']
 		);
 	}
 }
