@@ -54,9 +54,9 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 2. `run.sh` copies `src/` and `guest/` into `C:\pf` and runs `guest/provision.ps1` there, which
    - downloads everything in `downloads` in parallel with `curl.exe`, and checks each file's SHA-256 with
      `Get-FileHash` (the pins are the hashes of the bytes actually downloaded; see the comments in that file);
-   - installs the Visual C++ 14.51 runtime, x64 (PHP 8.6's `vs18` build refuses the VM's 14.44 one) and x86 (for the
-     32-bit runners), and unpacks one PHP per
-     version into `C:\pf\run\<X.Y>`, where no search strategy looks: the **runners**;
+   - installs the Visual C++ runtime from Visual Studio 2026 (its `vcruntime140.dll` reports 14.52.37029), x64 (PHP
+     8.6's `vs18` build, linked with 14.51, refuses the VM's 14.44 one) and x86 (for the 32-bit runners), and unpacks
+     one PHP per version into `C:\pf\run\<X.Y>`, where no search strategy looks: the **runners**;
    - attaches a VHD as **`D:`** (see "A second drive" below);
    - copies the top-level files of real PHP builds (`php.exe`, `php-cgi.exe`, the DLLs; no extensions, everything runs
      with `-n`) to every location a search strategy looks in: the **fixtures**, each checked by running it;
@@ -88,7 +88,7 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
 | `C:\pf\odd Windows_NT\php.exe` | **8.3** | what `C:\pf\odd %OS%\php.exe` becomes when `cmd.exe` expands `%OS%`: another binary |
-| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate, and running it prints nothing |
+| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate; `StderrTest` and `ExecFallbackTest` hand it to `analyzePHPVersion()` directly |
 | `C:\pf\fake\zero\php.exe` | none | an empty `php.exe`: never a candidate |
 
 Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian

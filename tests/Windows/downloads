@@ -18,9 +18,10 @@ php-8.6.0-nts-Win32-vs18-x64.zip d4783fffe1f4ab072600daff1622a7a2df936957a787a33
 # C:\Windows\System32. 7.2 is the floor (exec() through cmd.exe /c), 8.4 a current release.
 php-7.2.34-nts-Win32-VC15-x86.zip d5819614a0a141082408d66970432eec288db2765e0e96197c1ced481fb38783 https://downloads.php.net/~windows/releases/archives/php-7.2.34-nts-Win32-VC15-x86.zip
 php-8.4.28-nts-Win32-vs17-x86.zip d0370400d24ccdbb0b1d2629f22395acf2a511c1df22eb8422edbb99357cd368 https://downloads.php.net/~windows/releases/php-8.4.28-nts-Win32-vs17-x86.zip https://downloads.php.net/~windows/releases/archives/php-8.4.28-nts-Win32-vs17-x86.zip
-# Visual C++ v14 redistributable from Visual Studio 2026 (14.51), x64. PHP 8.6's vs18 build refuses the VM's 14.44
-# runtime ("VCRUNTIME140.dll 14.44 is not compatible with this PHP build linked with 14.51"). A versioned URL:
-# aka.ms/vc14/vc_redist.x64.exe always serves the latest build, which would break the pin.
+# Visual C++ v14 redistributable from Visual Studio 2026, x64: its vcruntime140.dll reports 14.52.37029 (provision.ps1
+# prints it). PHP 8.6's vs18 build refuses the VM's 14.44 runtime ("VCRUNTIME140.dll 14.44 is not compatible with this
+# PHP build linked with 14.51"). A versioned URL: aka.ms/vc14/vc_redist.x64.exe always serves the latest build, which
+# would break the pin.
 vc_redist.x64.exe 9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9 https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe
 # The same release's x86 redistributable: the x86 runners need the 32-bit runtime.
 vc_redist.x86.exe 7b0117e6e20e9e349029c000a8a2715a52cf37c15b6bb697b2908e8bc7066cdf https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/7B0117E6E20E9E349029C000A8A2715A52CF37C15B6BB697B2908E8BC7066CDF/VC_redist.x86.exe
