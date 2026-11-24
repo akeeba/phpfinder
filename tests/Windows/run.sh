@@ -111,10 +111,19 @@ fi
 FINISHED=0
 finish() { FINISHED=1; exit "$1"; }
 
+# The script's own STDOUT and STDERR. A signal which arrives while a function runs with its output redirected (e.g.
+# provisioning, into PROVISION_LOG) runs the traps with that redirection still in place: on_exit() restores these, so
+# that what it prints is not lost in a temporary file.
+exec 3>&1 4>&2
+PROVISION_LOG=""
+
 on_exit() {
 	local status=$?
 
 	trap - EXIT INT TERM
+	exec 1>&3 2>&4
+
+	[ -z "${PROVISION_LOG}" ] || rm -f "${PROVISION_LOG}"
 
 	# Bash 3.2 (macOS) hands an EXIT trap $? = 0 after a fatal shell error such as a failed ${VAR:?} check, then
 	# exits with the trap's own status. A run which did not reach finish() has failed.
@@ -148,7 +157,6 @@ start_vm() {
 }
 
 provision() {
-	local logfile
 
 	log "Copying the library and the guest scripts into the VM"
 	[ "${SRC_DIR}" = "${REPO_ROOT}/src" ] || warn "Testing the library in ${SRC_DIR}, not src/"
@@ -157,16 +165,16 @@ provision() {
 		"${SCRIPT_DIR}/guest/relay.php" "${SCRIPT_DIR}/guest/iis-probe.php" 'C:/pf/'
 
 	log "Provisioning the guest: PHP downloads, runners, fixtures, second drive"
-	logfile="$(mktemp -t phpfinder-windows-provision.XXXXXX)"
-	VM ssh 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\pf\provision.ps1' >"${logfile}" 2>&1 || true
-	tr -d '\r' <"${logfile}" | sed 's/^/     /'
+	PROVISION_LOG="$(mktemp "${TMPDIR:-/tmp}/phpfinder-windows-provision.XXXXXX")"
+	VM ssh 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\pf\provision.ps1' >"${PROVISION_LOG}" 2>&1 || true
+	tr -d '\r' <"${PROVISION_LOG}" | sed 's/^/     /'
 
-	if ! tr -d '\r' <"${logfile}" | tail -n 1 | grep -qx 'PF-PROVISION-OK'; then
-		rm -f "${logfile}"
+	if ! tr -d '\r' <"${PROVISION_LOG}" | tail -n 1 | grep -qx 'PF-PROVISION-OK'; then
+		rm -f "${PROVISION_LOG}"
 		die "Provisioning the guest failed (see above)."
 	fi
 
-	rm -f "${logfile}"
+	rm -f "${PROVISION_LOG}"
 	ok "Guest provisioned"
 }
 
