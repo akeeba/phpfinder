@@ -84,14 +84,9 @@ final class StrategiesTest extends AbstractWindowsTestCase
 		// drive, with their subdirectories (depth 1), in the order they were listed: C:\PHP before C:\Program Files\PHP.
 		$paths = $this->possiblePaths('8.3', self::isolated(['usePHPCommonWinDirsSearch' => true]), self::PATH_SYSTEM);
 
-		$this->expectKnownBug(
-			'pathsFromCommonWindowsInstallPaths() orders the directories by scan depth with asort(), which is not stable '
-			. 'before PHP 8.0: directories of the same depth come out in another order (known-issues row 26).',
-			function () use ($paths) {
-				$this->assertSamePaths([self::COMMON_VERSIONED_83, self::COMMON_ROOT_84, self::PROGRAM_FILES_82], $paths);
-			},
-			version_compare($this->runnerVersion(), '8.0', '<')
-		);
+		// Used to be ordered with asort(), which is not stable before PHP 8.0: on PHP 7, C:\Program Files\PHP came
+		// before C:\PHP.
+		$this->assertSamePaths([self::COMMON_VERSIONED_83, self::COMMON_ROOT_84, self::PROGRAM_FILES_82], $paths);
 	}
 
 	public function testCommonWindowsDirectoriesAreGated(): void

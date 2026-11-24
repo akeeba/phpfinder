@@ -77,9 +77,6 @@ abstract class AbstractWindowsTestCase extends TestCase
 	/** @var string|null */
 	private static $relayErrors;
 
-	/** @var string|null */
-	private static $runnerVersion;
-
 	/**
 	 * The runner of this PHPUnit run: a PHP version (e.g. 8.5) or "iis".
 	 */
@@ -91,19 +88,6 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected static function isIis(): bool
 	{
 		return self::runnerName() === 'iis';
-	}
-
-	/**
-	 * The version of the runner's PHP, e.g. 8.4.27 (IIS runs PHP 8.4).
-	 */
-	protected function runnerVersion(): string
-	{
-		if (self::$runnerVersion === null)
-		{
-			self::$runnerVersion = $this->probe('getPossiblePaths', null, self::isolated())['runnerVersion'];
-		}
-
-		return self::$runnerVersion;
 	}
 
 	/**

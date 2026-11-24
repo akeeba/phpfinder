@@ -497,8 +497,24 @@ final class PHPFinder
 		$possiblePaths = array_merge($possiblePaths, $this->getWindowsProgramFilesPHPPaths($programFilesx86, $version));
 
 		// A directory => scan depth map: array_merge() already keeps one entry per directory. Scan the versioned
-		// directories (depth 0) first.
-		asort($possiblePaths);
+		// directories (depth 0) first, and the directories of the same depth in the order they were listed. Not with
+		// asort(): it is not stable before PHP 8.0, so PHP 7 would scan the directories of the same depth in another
+		// order, e.g. C:\Program Files\PHP before C:\PHP.
+		$byDepth = [];
+
+		foreach ($possiblePaths as $path => $maxNesting)
+		{
+			$byDepth[$maxNesting][$path] = $maxNesting;
+		}
+
+		ksort($byDepth);
+
+		$possiblePaths = [];
+
+		foreach ($byDepth as $paths)
+		{
+			$possiblePaths = array_merge($possiblePaths, $paths);
+		}
 
 		$ret = [];
 
