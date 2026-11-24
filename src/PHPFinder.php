@@ -165,7 +165,8 @@ final class PHPFinder
 	 * The returned paths might NOT correspond to the correct version. Some paths are generic. Use getBestPath() with
 	 * default configuration options to guarantee the accuracy of the result.
 	 *
-	 * On Windows, only .exe files are returned: PHP's CLI binary is php.exe (see isWindowsProgramFile()).
+	 * On Windows, only .exe files which are Windows programs are returned: PHP's CLI binary is php.exe (see
+	 * isWindowsProgramFile()).
 	 *
 	 * @param   string|null  $version  The version to look for.
 	 *
@@ -1537,12 +1538,19 @@ final class PHPFinder
 	}
 
 	/**
-	 * Whether a path, on Windows, names a program file PHP's CLI binary could be: one ending in .exe, in any case.
+	 * Whether a path, on Windows, names a program file PHP's CLI binary could be: its name ends in .exe, in any case,
+	 * AND the file is a Windows program (a PE image, see isPeImage()). Both must hold.
 	 *
 	 * `where php` lists every file named php with an extension in PATHEXT, and php itself: php.bat, php.cmd, php.com,
 	 * an extensionless php (e.g. a shell script for Cygwin or Git Bash). None of them is PHP's CLI binary, and an
 	 * application which runs the path it is given would run them. Windows runs a .bat or .cmd file through cmd.exe (the
 	 * one %ComSpec% names), whose quoting rules differ from a program's and which expands %NAME% in its command line.
+	 * A program under another name (php.com, php) is refused too: what runs a path decides by its extension how to run
+	 * it, and only .exe is what PHP's CLI binary is called. A php.exe which is not a program (a text file, an empty
+	 * file) is refused before anything tries to run it.
+	 *
+	 * The header is only read where PHP really runs on Windows: the tests simulate Windows on other systems, with
+	 * shell scripts standing in for PHP binaries (as for getNullDevice()).
 	 *
 	 * @param   string  $path  The path
 	 *
@@ -1551,6 +1559,51 @@ final class PHPFinder
 	 */
 	private function isWindowsProgramFile(string $path): bool
 	{
-		return strtolower(substr($path, -4)) === '.exe';
+		if (strtolower(substr($path, -4)) !== '.exe')
+		{
+			return false;
+		}
+
+		return strtoupper(PHP_OS_FAMILY) !== 'WINDOWS' || $this->isPeImage($path);
+	}
+
+	/**
+	 * Whether a file is a Windows program (a PE image): the MZ signature at its start, and the PE signature (PE, two
+	 * NUL bytes) at the offset the 32-bit little-endian value at 0x3C gives, which is past the 64-byte MS-DOS header.
+	 *
+	 * Only its first bytes are read. A file which cannot be opened or read, or is too short, is not a program, without
+	 * any warning.
+	 *
+	 * @param   string  $path  The path to the file
+	 *
+	 * @return  bool
+	 * @since   1.0.2
+	 */
+	private function isPeImage(string $path): bool
+	{
+		$handle = @fopen($path, 'rb');
+
+		if ($handle === false)
+		{
+			return false;
+		}
+
+		$isPe   = false;
+		$header = @fread($handle, 64);
+
+		if (is_string($header) && strlen($header) === 64 && substr($header, 0, 2) === 'MZ')
+		{
+			// e_lfanew. A value of 2 GiB or more is negative on 32-bit PHP, and is refused with the rest.
+			$offset = unpack('V', substr($header, 0x3C, 4))[1];
+
+			if ($offset >= 64 && @fseek($handle, $offset) === 0)
+			{
+				$isPe = @fread($handle, 4) === "PE\0\0";
+			}
+		}
+
+		@fclose($handle);
+
+		return $isPe;
 	}
 }

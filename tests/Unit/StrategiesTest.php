@@ -219,6 +219,61 @@ final class StrategiesTest extends TestCase
 		$this->assertSame($exe, $finder->getBestPath(null));
 	}
 
+	public function testPeImageHeaderCheck(): void
+	{
+		// The smallest file which passes: MZ, e_lfanew (at 0x3C) = 0x40, PE\0\0 at 0x40.
+		$pe = 'MZ' . str_repeat("\0", 0x3A) . pack('V', 0x40) . "PE\0\0" . str_repeat("\0", 16);
+
+		$files = [
+			'pe.exe'           => [$pe, true],
+			'pe-elsewhere.exe' => [substr_replace($pe, pack('V', 0x80), 0x3C, 4) . str_repeat("\0", 0x80 - strlen($pe)) . "PE\0\0", true],
+			'text.exe'         => ["This is not a program.\r\n", false],
+			'empty.exe'        => ['', false],
+			'mz-only.exe'      => ['MZ', false],
+			'short-header.exe' => [substr($pe, 0, 63), false],
+			'no-pe.exe'        => [substr($pe, 0, 0x40) . 'NE' . str_repeat("\0", 16), false],
+			'pe-past-end.exe'  => [substr_replace($pe, pack('V', 0x1000), 0x3C, 4), false],
+			'pe-in-dos.exe'    => [substr_replace(substr_replace($pe, pack('V', 0x10), 0x3C, 4), "PE\0\0", 0x10, 4), false],
+			'pe-negative.exe'  => [substr_replace($pe, pack('V', 0xFFFFFFF0), 0x3C, 4), false],
+			'php.bat'          => ["@echo PHP 8.1.99 (cli)\r\n", false],
+		];
+
+		$finder = new PHPFinder();
+
+		[$results, $diagnostics] = $this->withDiagnostics(function () use ($files, $finder) {
+			$results = [];
+
+			foreach ($files as $name => [$bytes, $expected])
+			{
+				$path = $this->root() . '/' . $name;
+				file_put_contents($path, $bytes);
+				$results[$name] = $this->callPrivate($finder, 'isPeImage', [$path]);
+			}
+
+			// Neither a file which does not exist, nor a directory, nor a binary of another kind (PHP_BINARY here,
+			// unless the tests run on Windows) is one.
+			$results['missing']   = $this->callPrivate($finder, 'isPeImage', [$this->root() . '/missing.exe']);
+			$results['directory'] = $this->callPrivate($finder, 'isPeImage', [$this->root()]);
+
+			return $results;
+		});
+
+		$expected = array_map(
+			function ($file) {
+				return $file[1];
+			},
+			$files
+		) + ['missing' => false, 'directory' => false];
+
+		$this->assertSame($expected, $results);
+		$this->assertSame([], $diagnostics);
+
+		if (strtoupper(PHP_OS_FAMILY) !== 'WINDOWS')
+		{
+			$this->assertFalse($this->callPrivate($finder, 'isPeImage', [PHP_BINARY]), 'PHP_BINARY is not a PE image here');
+		}
+	}
+
 	public function testWindowsDrivesFromWmic(): void
 	{
 		// `wmic logicaldisk get name`, as it prints through a pipe: a header, each name padded to the column

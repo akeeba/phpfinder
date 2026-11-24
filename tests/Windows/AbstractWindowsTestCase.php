@@ -64,6 +64,7 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const ODD_NO_PERCENT_85    = 'C:\\pf\\odd & (x) !bang ^caret\\php.exe';
 	protected const ODD_EXPANDED_83      = 'C:\\pf\\odd Windows_NT\\php.exe';
 	protected const BROKEN_EXE           = 'C:\\pf\\fake\\broken\\php.exe';
+	protected const EMPTY_EXE            = 'C:\\pf\\fake\\zero\\php.exe';
 
 	// Windows directories with stand-ins for misbehaving tools (see guest/provision.ps1), for $windowsDirectory.
 	protected const WIN_WMIC_NONE    = 'C:\\pf\\fakewin\\wmic-none';

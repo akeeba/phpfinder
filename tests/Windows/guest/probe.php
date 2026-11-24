@@ -232,7 +232,7 @@ switch ($request['call'])
 				function ($file) {
 					return is_executable('C:\\pf\\path-ext\\' . $file);
 				},
-				['php.exe' => 'php.exe', 'php.bat' => 'php.bat', 'php.cmd' => 'php.cmd', 'php' => 'php']
+				['php.exe' => 'php.exe', 'php.bat' => 'php.bat', 'php.cmd' => 'php.cmd', 'php.com' => 'php.com', 'php' => 'php']
 			),
 			'pleskDir'     => getenv('PLESK_DIR'),
 		];

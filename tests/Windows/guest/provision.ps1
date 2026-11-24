@@ -135,9 +135,10 @@ New-Fixture '8.2' "$pf\path-b"
 New-Fixture '8.2' "$pf\path-b" 'php82.exe'
 New-Fixture '8.3' "$pf\path-cgi" 'php.exe' 'php-cgi.exe' 'cgi-fcgi'
 # `where` lists every file named php with an extension in PATHEXT, and php itself. Next to PHP 8.2's php.exe: a php.bat
-# and a php.cmd which claim to be PHP 8.1 (so a test would see it if one ran), and an extensionless shell script, as
-# Cygwin or Git Bash would run.
+# and a php.cmd which claim to be PHP 8.1 (so a test would see it if one ran), an extensionless shell script, as Cygwin
+# or Git Bash would run, and php.com, a real program (php.exe's copy) under another name.
 New-Fixture '8.2' "$pf\path-ext"
+Copy-Item "$pf\path-ext\php.exe" "$pf\path-ext\php.com"
 [IO.File]::WriteAllText("$pf\path-ext\php.bat", "@echo PHP 8.1.99 (cli) (php.bat)`r`n", [Text.Encoding]::ASCII)
 [IO.File]::WriteAllText("$pf\path-ext\php.cmd", "@echo PHP 8.1.98 (cli) (php.cmd)`r`n", [Text.Encoding]::ASCII)
 [IO.File]::WriteAllText("$pf\path-ext\php", "#!/bin/sh`nexec php.exe `"`$@`"`n", [Text.Encoding]::ASCII)
@@ -156,6 +157,9 @@ New-Fixture '8.3' "$pf\odd Windows_NT"
 # A php.exe which is not a program at all.
 New-Item -ItemType Directory -Force "$pf\fake\broken" | Out-Null
 Set-Content "$pf\fake\broken\php.exe" 'This is not a program.' -Encoding ascii
+# And an empty one.
+New-Item -ItemType Directory -Force "$pf\fake\zero" | Out-Null
+[IO.File]::WriteAllBytes("$pf\fake\zero\php.exe", [byte[]]@())
 
 # A stand-in for Windows' tools, compiled here (.NET Framework's C# compiler, through Add-Type). Copied under a tool's
 # name (where.exe, WMIC.exe, …), it appends its command line to <name>.ran next to itself, so a test can tell that it

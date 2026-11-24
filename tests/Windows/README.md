@@ -83,12 +83,13 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\path-a\php.exe` | 8.1 | `where`; only in the `PATH` when a test puts it there |
 | `C:\pf\path-b\php.exe`, `C:\pf\path-b\php82.exe` | 8.2 | `where` listing several binaries, and a versioned name |
 | `C:\pf\path-cgi\php.exe` | 8.3 **php-cgi.exe** | `validateCli` (it reports `(cgi-fcgi)`) |
-| `C:\pf\path-ext\php.exe`, with `php.bat`, `php.cmd` and an extensionless `php` | 8.2; the `.bat` and `.cmd` print a PHP 8.1 banner | `where` listing every `PATHEXT` match: only `.exe` files are kept |
+| `C:\pf\path-ext\php.exe`, with `php.bat`, `php.cmd`, `php.com` and an extensionless `php` | 8.2; the `.bat` and `.cmd` print a PHP 8.1 banner, `php.com` is a copy of `php.exe`, `php` a shell script | `where` listing every `PATHEXT` match: only `.exe` files are kept, even when another is a program |
 | `C:\pf\odd %PF_UNDEFINED% & (x) !bang ^caret\php.exe` | 8.5 | running a path with the characters `cmd.exe` treats specially |
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
 | `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
 | `C:\pf\odd Windows_NT\php.exe` | **8.3** | what `C:\pf\odd %OS%\php.exe` becomes when `cmd.exe` expands `%OS%`: another binary |
-| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program |
+| `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program (a text file): never a candidate, and running it prints nothing |
+| `C:\pf\fake\zero\php.exe` | none | an empty `php.exe`: never a candidate |
 
 Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian
 editions alike) lists `%plesk_dir%Additional\PHP<XY>\php.exe` for PHP 5.3 to 7.0; Plesk Obsidian installs

@@ -54,13 +54,25 @@ final class StrategiesTest extends AbstractWindowsTestCase
 
 	public function testWhereKeepsOnlyExeFiles(): void
 	{
-		// C:\pf\path-ext holds PHP 8.2's php.exe, a php.bat and a php.cmd which claim to be PHP 8.1, and an extensionless
-		// php: `where $PATH:php` lists all four (FactsTest). Only php.exe is PHP's CLI binary.
+		// C:\pf\path-ext holds PHP 8.2's php.exe, a php.bat and a php.cmd which claim to be PHP 8.1, php.com (a copy of
+		// php.exe) and an extensionless php: `where $PATH:php` lists all five (FactsTest). Only php.exe is PHP's CLI
+		// binary.
 		$config = self::isolated(['useWhere' => true]);
 		$path   = self::PATH_EXT . ';' . self::PATH_A . ';' . self::PATH_SYSTEM;
 
 		$this->assertSamePaths([self::PATH_EXT_82, self::PATH_A_81], $this->possiblePaths(null, $config, $path));
 		$this->assertSame(self::PATH_A_81, $this->bestPath('8.1', $config, $path));
+		$this->assertSame(self::PATH_EXT_82, $this->bestPath(null, $config, $path));
+	}
+
+	public function testWhereKeepsOnlyPrograms(): void
+	{
+		// A php.exe which is a text file (BROKEN_EXE), and an empty one (EMPTY_EXE), first in the PATH: not programs,
+		// whatever their name.
+		$config = self::isolated(['useWhere' => true]);
+		$path   = 'C:\\pf\\fake\\broken;C:\\pf\\fake\\zero;' . self::PATH_EXT . ';' . self::PATH_A . ';' . self::PATH_SYSTEM;
+
+		$this->assertSamePaths([self::PATH_EXT_82, self::PATH_A_81], $this->possiblePaths(null, $config, $path));
 		$this->assertSame(self::PATH_EXT_82, $this->bestPath(null, $config, $path));
 	}
 
