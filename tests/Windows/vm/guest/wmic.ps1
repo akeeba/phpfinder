@@ -51,8 +51,9 @@ function Write-WmicState([string]$label) {
     "where wmic (exit code $LASTEXITCODE): $($where -join ' | ')"
 }
 
-# Add-WindowsCapability fetches the feature from Windows Update, which refuses an SSH session's logon ("Access is
-# denied."): as SYSTEM, from a scheduled task, instead. Returns what it printed.
+# Add-WindowsCapability, which fetches the feature from Windows Update, failed with "Access is denied." in the build's
+# SSH session (Administrator) on Windows 11, and worked as SYSTEM, from a scheduled task (the cause was not traced):
+# it runs as SYSTEM. Returns what it printed.
 function Add-CapabilityAsSystem([string]$name) {
     $script = 'C:\pfvm\add-capability.ps1'
     $log    = 'C:\pfvm\add-capability.log'

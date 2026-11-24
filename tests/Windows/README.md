@@ -286,8 +286,8 @@ IIS). `vm/pfvm.sh` builds and runs them, modelled on `../buildfiles/vm/iis/iisvm
 | `win11` | Windows 11 Enterprise Evaluation, 24H2, build 26100.1742 | UEFI with Secure Boot, TPM 2.0 (swtpm), GPT | `127.0.0.1:22232` | `~/VMs/akeeba-pf-win11` |
 
 The IIS VM's port is 22225, so all three can run at the same time; each runs one test run at a time. Each takes 4 CPUs
-and 8 GB of memory while it runs, and up to 64 GB of disk (after the build, 8 GB for Server 2025 and 15 GB for
-Windows 11, snapshot included), and the downloads cache (`~/.cache/akeeba-phpfinder-vm/downloads`) holds both ISOs (6 and 5.4 GB) once fetched. Override any
+and 8 GB of memory while it runs, and up to 64 GB of disk (after the build and a few runs, 11 GB for Server 2025 and
+20 GB for Windows 11, snapshot included), and the downloads cache (`~/.cache/akeeba-phpfinder-vm/downloads`) holds both ISOs (6 and 5.4 GB) once fetched. Override any
 of these with the `PFVM_*` variables `pfvm.sh --help` lists.
 
 **Requirements on the KVM host**, besides the IIS VM's: `socat`; for `win11`, `swtpm` and the OVMF firmware with Secure
@@ -325,9 +325,9 @@ does not reset that clock: `start` rebuilds the VM when fewer than 7 days are le
   is back. So a 32-bit PHP sees no `wmic` either: the drive list comes from `fsutil`, as for a 64-bit one.
 - **Windows 11** (24H2, 26100.1742, the evaluation ISO's build, never updated: Windows Update is off): `WMIC~~~~` is
   **NotPresent** as installed, with neither copy. It could still be added on 24 November 2026: `Add-WindowsCapability`
-  as SYSTEM (from a scheduled task; in an SSH session Windows Update answers `Access is denied.`) fetched it from
-  Windows Update, with **both** copies, the same files as Server 2025's, both working; `Remove-WindowsCapability`
-  removed both again, without asking for a restart. This build predates Microsoft's removal of WMIC from Windows 11
+  as SYSTEM (from a scheduled task; in the SSH session, as Administrator, it failed with `Access is denied.`, for a
+  reason not traced) fetched it from Windows Update, with **both** copies, the same files as Server 2025's, both
+  working; `Remove-WindowsCapability` removed both again, without asking for a restart. This build predates Microsoft's removal of WMIC from Windows 11
   (KB5067470, see "Not covered"): what an updated Windows 11 is left with was not checked.
 - Both: `SystemRoot` is `C:\WINDOWS` (upper case; `C:\Windows` on Server 2022), `fsutil fsinfo drives` and `where`
   print what they print on Server 2022, and the whole suite passes on every CLI runner, the 32-bit ones too, with the

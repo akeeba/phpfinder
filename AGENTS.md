@@ -38,8 +38,10 @@ Docker integration suite. Both work on a fresh checkout, given a global `phpunit
   the CLI runners only, on this project's own VMs (`tests/Windows/vm/pfvm.sh`, modelled on `../buildfiles/vm/iis`):
   Windows Server 2025 Standard (Server Core) and Windows 11 Enterprise, evaluation editions, with Microsoft's WMIC
   Feature on Demand removed, and no IIS. The first run builds the VM on the KVM host (Windows 11 needs `swtpm` and
-  OVMF with Secure Boot there); `pfvm.sh` rebuilds it when its evaluation licence (180 days for Server, 90 for
-  Windows 11) is about to expire. They may be rebuilt (`pfvm.sh --os=… build --force`) when their tooling changes.
+  OVMF with Secure Boot there; 4 CPUs and 8 GB of memory while one runs, about 11 GB (Server) and 20 GB (Windows 11)
+  of disk with the snapshot, 11 GB of cached ISOs); `pfvm.sh` rebuilds it when its evaluation licence (180 days for
+  Server, 90 for Windows 11) is about to expire. They may be rebuilt (`pfvm.sh --os=… build --force`) when their
+  tooling changes.
   `FactsTest::WMIC` records what each VM's WMIC is; `tests/Windows/README.md`, "The VMs without WMIC", the rest.
 - PHPUnit is the **global** `phpunit`: never add `phpunit/phpunit` to `composer.json`. `config.platform.php` is
   `7.2.999` (the minimum supported series, as in the other projects), and `composer.lock` is tracked but holds no

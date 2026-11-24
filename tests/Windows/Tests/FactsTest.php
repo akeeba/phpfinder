@@ -30,7 +30,7 @@ final class FactsTest extends AbstractWindowsTestCase
 		// without asking for a restart; the build restarts anyway, and nothing comes back.
 		'server2025' => ['capability' => 'WMIC~~~~=NotPresent', 'System32' => false, 'SysWOW64' => false],
 		// Windows 11 Enterprise Evaluation 24H2, build 26100.1742 (no updates): WMIC~~~~ is NotPresent as installed, with
-		// neither copy. Add-WindowsCapability (as SYSTEM: over SSH, Windows Update answers "Access is denied.") added both
+		// neither copy. Add-WindowsCapability (as SYSTEM; in an SSH session it failed: "Access is denied.") added both
 		// copies from Windows Update; Remove-WindowsCapability removed both again, without asking for a restart.
 		'win11'      => ['capability' => 'WMIC~~~~=NotPresent', 'System32' => false, 'SysWOW64' => false],
 	];
