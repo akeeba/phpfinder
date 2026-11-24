@@ -15,13 +15,12 @@
 
 require __DIR__ . '/../bootstrap.php';
 
-$host  = getenv('PHPFINDER_WINDOWS_HOST');
-$iisvm = getenv('PHPFINDER_WINDOWS_IISVM') ?: (__DIR__ . '/../../../buildfiles/vm/iis/iisvm.sh');
+$host = getenv('PHPFINDER_WINDOWS_HOST');
 
-$howTo = "Run tests/Windows/run.sh --host=HOST (or `composer test:windows`, with WINDOWS_KVM_HOST set); it starts\n"
-	. "the VM, provisions it, runs this suite once per runner and stops the VM. To iterate, keep it up with:\n\n"
-	. "    tests/Windows/run.sh --host=HOST --keep-vm\n"
-	. "    PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter SomeTest\n";
+$howTo = "Run tests/Windows/run.sh --host=HOST [--vm=VM] (or `composer test:windows`, with WINDOWS_KVM_HOST set); it\n"
+	. "starts the VM, provisions it, runs this suite once per runner and stops the VM. To iterate, keep it up with:\n\n"
+	. "    tests/Windows/run.sh --host=HOST --vm=VM --keep-vm\n"
+	. "    PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_VM=VM PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter SomeTest\n";
 
 if (empty($host))
 {
@@ -33,7 +32,7 @@ if (empty($host))
 $output = [];
 $status = 0;
 exec(
-	'bash ' . escapeshellarg($iisvm) . ' --host=' . escapeshellarg($host) . ' ssh '
+	\Akeeba\PHPFinder\Tests\Windows\AbstractWindowsTestCase::vmCommand($host) . ' ssh '
 	. escapeshellarg('Test-Path C:\\pf\\run\\8.4\\php.exe') . ' 2>&1',
 	$output,
 	$status
@@ -43,7 +42,7 @@ if ($status !== 0 || trim(implode("\n", $output)) !== 'True')
 {
 	fwrite(
 		STDERR,
-		"\nThe Windows VM on $host is not running, or not provisioned.\n" . $howTo . "\n" . trim(implode("\n", $output)) . "\n"
+		"\nThe " . (getenv('PHPFINDER_WINDOWS_VM') ?: 'iis') . " Windows VM on $host is not running, or not provisioned.\n" . $howTo . "\n" . trim(implode("\n", $output)) . "\n"
 	);
 
 	exit(1);

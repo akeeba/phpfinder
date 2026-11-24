@@ -17,6 +17,24 @@ use Akeeba\PHPFinder\Tests\Windows\AbstractWindowsTestCase;
  */
 final class FactsTest extends AbstractWindowsTestCase
 {
+	/**
+	 * Microsoft's WMIC on each VM, as its snapshot has it: the Feature on Demand (Get-WindowsCapability; NULL: Windows
+	 * lists none) and the two copies of WMIC.exe, System32's (64-bit) and SysWOW64's (32-bit). See README.md, "The VMs
+	 * without WMIC", and wmic.log in each VM's directory for what the VM's build recorded.
+	 */
+	private const WMIC = [
+		// Windows Server 2022 Standard Evaluation, Server Core, build 20348: WMIC is part of Windows, not a capability.
+		'iis'        => ['capability' => null, 'System32' => true, 'SysWOW64' => true],
+		// Windows Server 2025 Standard Evaluation, Server Core, build 26100.1742: WMIC~~~~ is Installed, with both
+		// copies, as installed. Remove-WindowsCapability removed both copies (and their en-US resources) at once,
+		// without asking for a restart; the build restarts anyway, and nothing comes back.
+		'server2025' => ['capability' => 'WMIC~~~~=NotPresent', 'System32' => false, 'SysWOW64' => false],
+		// Windows 11 Enterprise Evaluation 24H2, build 26100.1742 (no updates): WMIC~~~~ is NotPresent as installed, with
+		// neither copy. Add-WindowsCapability (as SYSTEM: over SSH, Windows Update answers "Access is denied.") added both
+		// copies from Windows Update; Remove-WindowsCapability removed both again, without asking for a restart.
+		'win11'      => ['capability' => 'WMIC~~~~=NotPresent', 'System32' => false, 'SysWOW64' => false],
+	];
+
 	/** @var array|null */
 	private static $facts;
 
@@ -29,6 +47,53 @@ final class FactsTest extends AbstractWindowsTestCase
 		}
 
 		return self::$facts;
+	}
+
+	/**
+	 * The WMIC of this run's VM (see WMIC).
+	 */
+	private static function wmic(): array
+	{
+		return self::WMIC[self::vmName()];
+	}
+
+	/**
+	 * Whether this run's runner sees a wmic where PHPFinder runs it from (C:\\Windows\\System32\\wbem\\WMIC.exe): a 32-bit
+	 * runner sees SysWOW64's there.
+	 */
+	private static function runnerSeesWmic(): bool
+	{
+		return self::wmic()[self::isX86() ? 'SysWOW64' : 'System32'];
+	}
+
+	/**
+	 * What a run of `wmic` printed, as exec() or proc_open() saw it, when the runner has no wmic: cmd.exe's error.
+	 */
+	private function assertNoWmic(array $raw): void
+	{
+		$this->assertSame('', trim(hex2bin($raw['stdout'])), 'Nothing on STDOUT');
+		$this->assertStringContainsString("'wmic' is not recognized", hex2bin($raw['stderr']));
+	}
+
+	public function testWmicIsAsTheVmHasIt(): void
+	{
+		// Both copies of WMIC.exe, from the runner (a 32-bit one sees System32's at Sysnative), and the WMIC Feature on
+		// Demand, which only a 64-bit CLI runner asks Windows about (Get-WindowsCapability needs an elevated, 64-bit
+		// PowerShell: not IIS).
+		$expected = self::wmic();
+		$actual   = $this->probe('wmic', null)['result'];
+
+		$this->assertSame($expected['System32'], $actual['System32'], 'System32\\wbem\\WMIC.exe');
+		$this->assertSame($expected['SysWOW64'], $actual['SysWOW64'], 'SysWOW64\\wbem\\WMIC.exe');
+
+		if (self::isIis() || self::isX86())
+		{
+			$this->assertArrayNotHasKey('capability', $actual);
+
+			return;
+		}
+
+		$this->assertSame((string) $expected['capability'], $actual['capability'], 'Get-WindowsCapability');
 	}
 
 	public function testTheRunnerIsTheOneAskedFor(): void
@@ -48,10 +113,11 @@ final class FactsTest extends AbstractWindowsTestCase
 
 	public function testWindowsToolsAreWherePHPFinderRunsThemFrom(): void
 	{
-		// PHPFinder runs them by these full paths, in the Windows directory (SystemRoot).
-		$this->assertSame('C:\\Windows', $this->facts()['systemRoot']);
+		// PHPFinder runs them by these full paths, in the Windows directory (SystemRoot): C:\\Windows on Windows Server
+		// 2022, C:\\WINDOWS on Windows Server 2025 and Windows 11 24H2. File names are case-insensitive.
+		$this->assertSame('c:\\windows', strtolower($this->facts()['systemRoot']));
 		$this->assertSame(
-			['where' => true, 'wmic' => true, 'fsutil' => true, 'powershell' => true],
+			['where' => true, 'wmic' => self::runnerSeesWmic(), 'fsutil' => true, 'powershell' => true],
 			$this->facts()['tools']
 		);
 	}
@@ -68,21 +134,32 @@ final class FactsTest extends AbstractWindowsTestCase
 	public function testEveryToolHasA32BitCopy(): void
 	{
 		// What a 32-bit runner runs at C:\\Windows\\System32\\…: the guest (Server Core with WoW64-Support) has a 32-bit
-		// copy of every tool PHPFinder runs, cmd.exe too (checked by hand).
+		// copy of every tool PHPFinder runs, cmd.exe too (checked by hand); of wmic, when the VM has it.
 		$this->assertSame(
-			['where' => true, 'wmic' => true, 'fsutil' => true, 'powershell' => true],
+			['where' => true, 'wmic' => self::wmic()['SysWOW64'], 'fsutil' => true, 'powershell' => true],
 			$this->facts()['toolsWow64']
 		);
 	}
 
 	public function testWmicIsInTheSystemPath(): void
 	{
-		$this->assertSame('c:\\windows\\system32\\wbem\\wmic.exe', strtolower($this->facts()['wmicPath']));
+		$this->assertSame(
+			self::runnerSeesWmic() ? 'c:\\windows\\system32\\wbem\\wmic.exe' : '',
+			strtolower($this->facts()['wmicPath'])
+		);
 	}
 
 	public function testWmicPrintsOneTrimmedDriveLetterPerLine(): void
 	{
 		$wmic = $this->facts()['wmic'];
+
+		if (!self::runnerSeesWmic())
+		{
+			$this->assertNotSame(0, $wmic['status']);
+			$this->assertSame([], $wmic['lines']);
+
+			return;
+		}
 
 		// A header, one drive per line, and a blank line at the end. ASCII through a pipe, not UTF-16, and exec() has
 		// already stripped the padding and the CRs.
@@ -94,6 +171,13 @@ final class FactsTest extends AbstractWindowsTestCase
 	public function testWmicPadsItsColumnAndEndsLinesWithCrCrLf(): void
 	{
 		// Before exec() trims them: "Name  ", "C:    ", each followed by \r\r\n.
+		if (!self::runnerSeesWmic())
+		{
+			$this->assertNoWmic($this->facts()['wmicRaw']);
+
+			return;
+		}
+
 		$raw = hex2bin($this->facts()['wmicRaw']['stdout']);
 
 		$this->assertSame("Name  \r\r\nC:    \r\r\nD:    \r\r\nE:    \r\r\n\r\r\n", $raw);
@@ -102,6 +186,13 @@ final class FactsTest extends AbstractWindowsTestCase
 	public function testWmicWithoutInstancesPrintsOnlyBlankLinesOnStdout(): void
 	{
 		$none = $this->facts()['wmicNone'];
+
+		if (!self::runnerSeesWmic())
+		{
+			$this->assertNoWmic($none);
+
+			return;
+		}
 
 		$this->assertSame('', trim(hex2bin($none['stdout'])), 'Only blank lines on STDOUT');
 		$this->assertStringContainsString('No Instance(s) Available.', hex2bin($none['stderr']));

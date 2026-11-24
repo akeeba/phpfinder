@@ -226,7 +226,7 @@ function plantFiles(array $files, bool $unplant): array
 /**
  * Hide (rename to <name>.pf-hidden) or restore Windows' own wmic and fsutil: the 64-bit copies in System32 and the
  * 32-bit ones in SysWOW64, which a 32-bit (x86) runner sees at System32 instead. The relay is 64-bit: it sees both
- * where they are. A Windows without wmic has neither copy.
+ * where they are. A copy which is not there (the VMs without WMIC, tests/Windows/vm) is neither hidden nor restored.
  *
  * @param   bool[]  $hidden  wmic and/or fsutil => whether it is to be hidden
  */
@@ -249,6 +249,7 @@ function hideTools(array $hidden): array
 
 			clearstatcache();
 
+			// Only what is there: a Windows without WMIC (tests/Windows/vm) has no copy to hide, nor one to restore.
 			if (is_file($from) && !@rename($from, $to))
 			{
 				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: could not rename ' . $from . ': ' . (error_get_last()['message'] ?? '')];
@@ -256,9 +257,9 @@ function hideTools(array $hidden): array
 
 			clearstatcache();
 
-			if (is_file($path) === (bool) $hide)
+			if (is_file($from))
 			{
-				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: ' . $path . ($hide ? ' is still there' : ' is missing')];
+				return ['status' => 1, 'stdout' => '', 'stderr' => 'relay.php: ' . $from . ' is still there'];
 			}
 		}
 	}

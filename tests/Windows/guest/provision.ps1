@@ -9,6 +9,10 @@
 #   3. Attaches a VHD as a second drive letter, D:, which (unlike SUBST) every logon session and WMI see.
 #   4. Copies real PHP builds to every location a search strategy looks in (the fixtures, see README.md), and checks
 #      that each one runs and reports the version it should.
+#   5. Makes IIS run the probe, with the 64-bit and with the 32-bit PHP 8.4; not with -NoIis, for the VMs without IIS
+#      (tests/Windows/vm), which have everything else this script needs: C:\php (PHP 8.4) and the 32-bit subsystem.
+param([switch]$NoIis)
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -272,10 +276,17 @@ foreach ($dir in "$pf\planted", "$pf\planted-cmd") { & icacls $dir /grant 'Every
 # Let the suite hide wmic and fsutil for real (a Windows without wmic: Windows 11, Windows Server 2025 without it), by
 # renaming them (relay.php). They belong to TrustedInstaller; the VM's snapshot restores them on the next start. The
 # 32-bit copies in SysWOW64 too: that is what an x86 runner sees at C:\Windows\System32.
+# A Windows without WMIC (tests/Windows/vm) has fewer of them.
 foreach ($tool in $wmic, $fsutil, ($wmic -replace '^System32', 'SysWOW64'), ($fsutil -replace '^System32', 'SysWOW64')) {
     $tool = "$env:windir\$tool"
+    if (-not (Test-Path -LiteralPath $tool)) { "no $tool to take over"; continue }
     & takeown /f $tool /a | Out-Null
     & icacls $tool /grant 'Administrators:F' | Out-Null
+}
+
+if ($NoIis) {
+    'PF-PROVISION-OK'
+    exit 0
 }
 
 # The library, run by IIS (FastCGI, C:\php\php-cgi.exe 8.4) as a web application would be.

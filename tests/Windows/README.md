@@ -4,7 +4,9 @@
 
 PHPUnit runs on the host. PHPFinder runs on a **real Windows**: the shared IIS test VM of
 [akeeba/buildfiles](https://github.com/akeeba/buildfiles) (`../buildfiles/vm/iis`, Windows Server 2022 Core with IIS 10
-and PHP 8.4), under several real PHP CLIs and under IIS. Every test asks `guest/probe.php`, in the guest, to run the
+and PHP 8.4), under several real PHP CLIs and under IIS; or, with `--vm=server2025` or `--vm=win11`, one of this
+project's VMs **without WMIC** (Windows Server 2025, Windows 11: `vm/`, see "The VMs without WMIC"), under the same
+CLIs. Every test asks `guest/probe.php`, in the guest, to run the
 library with a given configuration, version, `PATH` and environment, and asserts on what it returns, including any PHP
 warning or deprecation it raised, and anything it printed on STDERR.
 
@@ -16,8 +18,9 @@ and the Windows code paths are checked against the real thing.
 
 - A **KVM host**: a Linux machine with a usable `/dev/kvm`, reached over SSH with key authentication (or `local`, when
   you run this on such a machine). `../buildfiles/vm/iis/README.md` lists what it needs; the first run there builds the
-  VM (about 10 minutes, plus 5 GB of downloads). A Mac cannot be a KVM host, but can drive a remote one.
-- `../buildfiles` checked out next to this repository.
+  VM (about 10 minutes, plus 5 GB of downloads). A Mac cannot be a KVM host, but can drive a remote one. The VMs without
+  WMIC need a little more (see "The VMs without WMIC").
+- `../buildfiles` checked out next to this repository (the IIS VM only).
 - PHP and a global `phpunit` on this machine (as for the other suites).
 - The guest needs Internet access: it downloads the PHP builds in `downloads` on every run.
 
@@ -27,6 +30,8 @@ and the Windows code paths are checked against the real thing.
 tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, -dx, then IIS (64, 32-bit)
 WINDOWS_KVM_HOST=<ssh host> composer test:windows  # the same
 tests/Windows/run.sh --host=<ssh host> --runner=7.2,iis --filter DrivesTest
+tests/Windows/run.sh --host=<ssh host> --vm=server2025   # every CLI runner on Windows Server 2025 without WMIC
+tests/Windows/run.sh --host=<ssh host> --vm=win11        # every CLI runner on Windows 11 without WMIC
 ```
 
 There is no default host: without `--host` or `WINDOWS_KVM_HOST`, `run.sh` stops with its usage.
@@ -36,21 +41,22 @@ There is no default host: without `--host` or `WINDOWS_KVM_HOST`, `run.sh` stops
 | Option | What it does |
 |---|---|
 | `--host=HOST` | The KVM host (an SSH destination, or `local`). Default: `WINDOWS_KVM_HOST` |
-| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis iis-x86` (default: all) |
+| `--vm=VM` | `iis` (the default: the shared IIS VM, Windows Server 2022), `server2025` or `win11` (the VMs without WMIC, and without IIS). Default: `WINDOWS_VM`, or `iis` |
+| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis iis-x86` (default: all; on the VMs without IIS, all but `iis` and `iis-x86`) |
 | `-f`, `--filter=NAME` | Passed to PHPUnit as `--filter` |
 | `--src=DIR` | Put this directory's `PHPFinder.php` and `Configuration.php` into the guest instead of `src/`, e.g. a revision exported with `git show <rev>:src/…`, to show a test failing on the code before a fix |
-| `--keep-vm` | Leave the VM running afterwards, to iterate with `PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter …` |
+| `--keep-vm` | Leave the VM running afterwards, to iterate with `PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_VM=VM PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter …` |
 | `--down` | Stop the VM and exit |
 | `-- <args>` | Anything after `--` goes to PHPUnit |
 
-**One run at a time.** The VM is shared by every project on that KVM host. `run.sh` refuses to start when it is already
-running (another run is using it), and stops the VM it started on every exit path: success, failure, an error in the
+**One run at a time** per VM. The IIS VM is shared by every project on that KVM host. `run.sh` refuses to start when
+the VM is already running (another run is using it), and stops the VM it started on every exit path: success, failure, an error in the
 script, Ctrl-C or a kill. Only `--keep-vm` leaves it running; stop it with `--down` when you are done. Every start
 restores the VM's clean snapshot, so nothing a run did survives it, and nothing can be cached in the guest.
 
 ## How it works
 
-1. `iisvm.sh start` restores the snapshot and boots the VM.
+1. `iisvm.sh start` (`vm/pfvm.sh start` for the VMs without WMIC) restores the snapshot and boots the VM.
 2. `run.sh` copies `src/` and `guest/` into `C:\pf` and runs `guest/provision.ps1` there, which
    - downloads everything in `downloads` in parallel with `curl.exe`, and checks each file's SHA-256 with
      `Get-FileHash` (the pins are the hashes of the bytes actually downloaded; see the comments in that file);
@@ -60,9 +66,10 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
    - attaches a VHD as **`D:`** (see "A second drive" below);
    - copies the top-level files of real PHP builds (`php.exe`, `php-cgi.exe`, the DLLs; no extensions, everything runs
      with `-n`) to every location a search strategy looks in: the **fixtures**, each checked by running it;
-   - makes IIS run `pf-probe.php` (`guest/iis-probe.php`) with one `php-cgi.exe` per request: the VM's 64-bit PHP 8.4
-     for the site, and the 32-bit 8.4 runner's for the application `/pf-x86` (`C:\inetpub\pf-x86`), which has its own
-     application pool, with 32-bit applications enabled, its own `*.php` handler, and a copy of the VM's `php.ini`.
+   - on the IIS VM only (the others run it with `-NoIis`), makes IIS run `pf-probe.php` (`guest/iis-probe.php`) with
+     one `php-cgi.exe` per request: the VM's 64-bit PHP 8.4 for the site, and the 32-bit 8.4 runner's for the
+     application `/pf-x86` (`C:\inetpub\pf-x86`), which has its own application pool, with 32-bit applications enabled,
+     its own `*.php` handler, and a copy of the VM's `php.ini`.
 3. PHPUnit runs once per runner. The suite keeps one SSH session open to `guest/relay.php` for the whole run (each SSH
    round trip takes about two seconds); the relay runs `C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request>` for each
    test, without a shell, in an empty working directory, and sends back its STDOUT and STDERR apart. For the `iis`
@@ -117,10 +124,10 @@ PHPFinder runs `where`, `wmic`, `fsutil` and PowerShell from the Windows directo
 `System32\WindowsPowerShell\v1.0\powershell.exe`, through `System32\cmd.exe /d /s /c` (see "What the real Windows
 prints" for why). The `PATH` does not matter to them, so the tests change what runs in two ways:
 
-- **A Windows without `wmic`** (see "Not covered"), or without `fsutil`, is the real one with
-  `WMIC.exe` or `fsutil.exe` renamed for the duration of a test: `hideTools()` asks `relay.php`, which runs as
-  Administrator, to rename them (`provision.ps1` takes them over from TrustedInstaller first), and every such test puts
-  them back in `tearDown()`. The next start of the VM restores its snapshot anyway. Both copies: `System32`'s and
+- **A Windows without `wmic`** (see "The VMs without WMIC" for real ones), or without `fsutil`, is the real one with
+  `WMIC.exe` or `fsutil.exe` renamed for the duration of a test (on the VMs without WMIC, only `fsutil.exe`: there is
+  no `WMIC.exe` to rename): `hideTools()` asks `relay.php`, which runs as Administrator, to rename them
+  (`provision.ps1` takes them over from TrustedInstaller first), and every such test puts them back in `tearDown()`. The next start of the VM restores its snapshot anyway. Both copies: `System32`'s and
   `SysWOW64`'s, which is what a 32-bit runner sees at `System32`. `hideToolsAndCheck()` then asks the runner whether
   it still sees them where the library looks (the probe's `tools` call): hiding only `System32`'s let the 32-bit
   runners use `SysWOW64`'s `wmic`, and the tests of a Windows without it tested nothing.
@@ -173,7 +180,8 @@ CD drive, `E:`, so the drive list is `C:`, `D:`, `E:`.
 
 ## What the real Windows prints
 
-`FactsTest` checks these, byte for byte, as PHP's `exec()` sees them (Windows Server 2022, build 20348):
+`FactsTest` checks these, byte for byte, as PHP's `exec()` sees them (Windows Server 2022, build 20348; on the VMs
+without WMIC, everything but `wmic`, which they do not have):
 
 - `wmic` is `C:\Windows\System32\Wbem\WMIC.exe`, in the default `PATH`. `wmic logicaldisk get name` through a pipe
   prints ASCII (not UTF-16): `Name  `, then each drive padded to the column width (`C:    `), every line ending in
@@ -264,21 +272,79 @@ connection.
 Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviour through `expectKnownBug()`
 (`tests/Support/KnownBug.php`), as in the other suites.
 
+## The VMs without WMIC
+
+**Opt-in, like the rest of this suite.** `run.sh --vm=server2025` and `run.sh --vm=win11` run the same suite on two VMs
+of this project's own, which have no WMIC the way Microsoft removes it: its Feature on Demand, `WMIC~~~~`, uninstalled
+(`Remove-WindowsCapability`), not renamed. Every CLI runner, the 32-bit and `-dx` ones too; no IIS runner (they have no
+IIS). `vm/pfvm.sh` builds and runs them, modelled on `../buildfiles/vm/iis/iisvm.sh` (same commands, `--os=server2025` or
+`--os=win11` added), and nothing in `../buildfiles` is used or changed.
+
+| VM | Windows | Firmware | Guest SSH (KVM host's loopback) | VM directory |
+|---|---|---|---|---|
+| `server2025` | Windows Server 2025 Standard Evaluation, Server Core, build 26100.1742 | BIOS, MBR | `127.0.0.1:22231` | `~/VMs/akeeba-pf-server2025` |
+| `win11` | Windows 11 Enterprise Evaluation, 24H2, build 26100.1742 | UEFI with Secure Boot, TPM 2.0 (swtpm), GPT | `127.0.0.1:22232` | `~/VMs/akeeba-pf-win11` |
+
+The IIS VM's port is 22225, so all three can run at the same time; each runs one test run at a time. Each takes 4 CPUs
+and 8 GB of memory while it runs, and up to 64 GB of disk (after the build, 8 GB for Server 2025 and 15 GB for
+Windows 11, snapshot included), and the downloads cache (`~/.cache/akeeba-phpfinder-vm/downloads`) holds both ISOs (6 and 5.4 GB) once fetched. Override any
+of these with the `PFVM_*` variables `pfvm.sh --help` lists.
+
+**Requirements on the KVM host**, besides the IIS VM's: `socat`; for `win11`, `swtpm` and the OVMF firmware with Secure
+Boot and Microsoft's keys enrolled, in qcow2 format (`/usr/share/edk2/ovmf/OVMF_CODE_4M.secboot.qcow2` and
+`OVMF_VARS_4M.secboot.qcow2`, Fedora's `edk2-ovmf`; `PFVM_OVMF_CODE` and `PFVM_OVMF_VARS` point elsewhere). `pfvm.sh`
+says what is missing.
+
+**Building.** The first `start` (or `pfvm.sh --os=… build`) builds the VM, about 10 minutes for Server 2025 and 15 for
+Windows 11, plus the downloads (`vm/downloads`, pinned by SHA-256):
+
+1. Windows is installed from Microsoft's evaluation ISO, fully unattended (`vm/make-unattend.py`), with automatic updates
+   off from the start; on Windows 11 also device encryption off, and the built-in Administrator enabled. At first logon
+   OpenSSH Server (inbox on Server 2025, from Windows Update on Windows 11) accepts only the key generated for the VM.
+   The answer file, which holds the Administrator password, is deleted once Windows is installed; the password stays
+   in the VM directory (`admin-password.txt`, mode 0600, the directory 0700).
+2. `vm/guest/setup.ps1` activates the evaluation (until then it counts down 10 days, not 180 or 90), checks the 32-bit
+   subsystem (WoW64-Support is installed on Server Core 2025 too), and installs the Visual C++ runtime and PHP 8.4 in
+   `C:\php`, which `provision.ps1` expects.
+3. `vm/guest/wmic.ps1` records WMIC (the capability, both copies of `WMIC.exe` and their language files, whether each
+   runs), removes the capability, and records it again before and after a restart: `wmic.log` in the VM directory.
+4. The VM restarts as `start` boots it, `vm/guest/check.ps1` checks that `D:` is free and `E:` is the empty CD drive,
+   and the disk (and on Windows 11 the firmware's variables and the TPM's state, which belong with it) is saved as the
+   snapshot `ready`. Every `start` restores it.
+
+**The evaluation licence** lasts 180 days (Server 2025) or 90 (Windows 11) from the install, and restoring the snapshot
+does not reset that clock: `start` rebuilds the VM when fewer than 7 days are left (`PFVM_MIN_GRACE_DAYS`), as
+`iisvm.sh` does.
+
+**What they show** (`FactsTest::WMIC` asserts it on every run; `testWmicIsAsTheVmHasIt`):
+
+- **Windows Server 2025** (26100.1742): `WMIC~~~~` is **Installed** as installed, with both copies,
+  `System32\wbem\WMIC.exe` (64-bit, 471,040 bytes) and `SysWOW64\wbem\WMIC.exe` (32-bit, 406,528 bytes), both
+  10.0.26100.1, both working. `Remove-WindowsCapability -Online -Name WMIC~~~~` (no restart asked for) removes **both
+  copies** at once, and their `en-US\wmic.exe.mui`; after a restart the capability is `NotPresent` and neither copy
+  is back. So a 32-bit PHP sees no `wmic` either: the drive list comes from `fsutil`, as for a 64-bit one.
+- **Windows 11** (24H2, 26100.1742, the evaluation ISO's build, never updated: Windows Update is off): `WMIC~~~~` is
+  **NotPresent** as installed, with neither copy. It could still be added on 24 November 2026: `Add-WindowsCapability`
+  as SYSTEM (from a scheduled task; in an SSH session Windows Update answers `Access is denied.`) fetched it from
+  Windows Update, with **both** copies, the same files as Server 2025's, both working; `Remove-WindowsCapability`
+  removed both again, without asking for a restart. This build predates Microsoft's removal of WMIC from Windows 11
+  (KB5067470, see "Not covered"): what an updated Windows 11 is left with was not checked.
+- Both: `SystemRoot` is `C:\WINDOWS` (upper case; `C:\Windows` on Server 2022), `fsutil fsinfo drives` and `where`
+  print what they print on Server 2022, and the whole suite passes on every CLI runner, the 32-bit ones too, with the
+  library unchanged: without `wmic`, the drive list comes from `fsutil`.
+
 ## Not covered
 
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
-- Windows 11 and Windows Server 2025 themselves. A Windows without `wmic` is this one with both copies of `WMIC.exe`
-  renamed. Which Windows lack it, according to Microsoft: Windows 11 had it as a Feature on Demand from 22H2, disabled
-  by default on 23H2 and 24H2 from 2024, removed on upgrade to 25H2, and removed from every supported Windows 11 release
-  (24H2 and 25H2 with the August 2026 preview update, 26H1 with the September one), no longer installable
-  ([KB5067470](https://support.microsoft.com/help/5067470), "Windows Management Instrumentation Command-line (WMIC)
-  removal from Windows", last changed 29 September 2026). Windows Server 2025 has it as a Feature on Demand, added with
-  `DISM /Add-Capability`, and Windows Server 2028 (in preview) removes it ("Features removed or no longer developed in
-  Windows Server", learn.microsoft.com, 20 November 2026). Windows Server 2022 and Windows 10 keep it inbox. Neither
-  source says whether the 32-bit copy (`SysWOW64\wbem\WMIC.exe`) goes with the 64-bit one, and this VM cannot show
-  it: on Windows Server 2022 `WMIC` is no capability (`Get-WindowsCapability -Online` and `DISM /Get-Capabilities` list
-  none), so it cannot be removed the way Windows removes it. Hiding both copies is the safe assumption: a Windows which
-  kept the 32-bit one would only let the 32-bit runners use it. Checking it for real needs a Windows Server 2025 (or
-  Windows 11) guest: removing the WMIC capability there, then looking for both files and running the suite; that is
-  another VM image for `../buildfiles/vm` (installation media, unattended setup, an evaluation licence), not built.
+- An updated Windows 11, and Windows Server 2028. Which Windows lack WMIC, according to Microsoft: Windows 11 had it
+  as a Feature on Demand from 22H2, disabled by default on 23H2 and 24H2 from 2024, removed on upgrade to 25H2, and
+  removed from every supported Windows 11 release (24H2 and 25H2 with the August 2026 preview update, 26H1 with the
+  September one), no longer installable ([KB5067470](https://support.microsoft.com/help/5067470), "Windows Management
+  Instrumentation Command-line (WMIC) removal from Windows", last changed 29 September 2026). Windows Server 2025 has
+  it as a Feature on Demand, added with `DISM /Add-Capability`, and Windows Server 2028 (in preview) removes it
+  ("Features removed or no longer developed in Windows Server", learn.microsoft.com, 20 November 2026). Windows Server
+  2022 and Windows 10 keep it inbox: on Server 2022 `WMIC` is no capability (`Get-WindowsCapability -Online` and
+  `DISM /Get-Capabilities` list none). The VMs without WMIC (above) remove the capability themselves, on builds which
+  predate those updates; both copies go (checked on both). On the IIS VM, a Windows without `wmic` is Server 2022 with
+  both copies of `WMIC.exe` renamed, which is what removing the capability does to the files.
 - A server whose system drive is not `C:`.

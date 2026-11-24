@@ -2,27 +2,33 @@
 #
 # One-shot Windows test harness for PHPFinder. Opt-in: never part of `composer test`.
 #
-# Runs the library on a REAL Windows: the shared IIS test VM (Windows Server 2022, ../buildfiles/vm/iis), under
-# QEMU/KVM on a Linux "KVM host" reached over SSH. PHPUnit runs here; the library runs in the guest under several
-# real PHP CLIs, and under IIS.
+# Runs the library on a REAL Windows: the shared IIS test VM (Windows Server 2022, ../buildfiles/vm/iis) by default,
+# or one of this project's VMs without WMIC (Windows Server 2025, Windows 11: vm/pfvm.sh), under QEMU/KVM on a Linux
+# "KVM host" reached over SSH. PHPUnit runs here; the library runs in the guest under several real PHP CLIs, and
+# under IIS (the IIS VM only).
 #
 # What it does, in order:
 #   1. Refuse to run if the VM is already running (another run is using it).
-#   2. Start the VM (iisvm.sh restores its clean snapshot every time).
+#   2. Start the VM (iisvm.sh and pfvm.sh restore its clean snapshot every time).
 #   3. Copy src/ and guest/ into it, and run guest/provision.ps1 there: it downloads the pinned PHP builds
 #      (downloads), installs the runners and the fixtures, and attaches a second drive.
-#   4. Run phpunit -c phpunit-windows.xml once per runner (every PHP version, then IIS).
+#   4. Run phpunit -c phpunit-windows.xml once per runner (every PHP version, then IIS on the IIS VM).
 #   5. Stop the VM, on every exit path.
 #
 # Usage:  tests/Windows/run.sh --host=HOST [options] [-- <extra PHPUnit args>]
 #       --host=HOST        The KVM host: an SSH host with KVM (or `local` on such a Linux machine). Default: the
 #                          WINDOWS_KVM_HOST environment variable; there is no other default.
+#       --vm=VM            The Windows VM: iis (default: Windows Server 2022 with WMIC and IIS, ../buildfiles/vm/iis),
+#                          server2025 or win11 (Windows Server 2025, Windows 11, both without WMIC and without IIS:
+#                          vm/pfvm.sh; the first run builds the VM). Default: the WINDOWS_VM environment variable, or iis
 #       --runner=LIST      Only these runners, space or comma separated (e.g. 7.2,8.6,8.4-x86,8.4-dx,iis). Default: all
+#                          (the VMs without IIS: all but iis and iis-x86)
 #   -f, --filter=NAME      Passed to PHPUnit as --filter
 #       --src=DIR          Copy this directory's PHPFinder.php and Configuration.php into the guest instead of
 #                          src/, e.g. an older revision, to show a test failing on the code before a fix
 #       --keep-vm          Leave the VM running afterwards; then iterate with
-#                          PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml
+#                          PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_VM=VM PHPFINDER_WINDOWS_RUNNER=8.5 \
+#                          phpunit -c phpunit-windows.xml
 #       --down             Stop the VM and exit (after --keep-vm)
 #   -h, --help             Show this help
 #
@@ -33,11 +39,14 @@ SCRIPT_PATH="${SCRIPT_DIR}/$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # The shared IIS test VM, used by every Akeeba project which needs a real Windows.
 IISVM="${REPO_ROOT}/../buildfiles/vm/iis/iisvm.sh"
+# This project's VMs without WMIC (and without IIS).
+PFVM="${SCRIPT_DIR}/vm/pfvm.sh"
 
 # Every PHP version provision.ps1 installs (downloads, plus the VM's own 8.4), the 32-bit ones (<X.Y>-x86, under
-# WoW64), two with cmd.exe's delayed expansion turned on in the registry (<X.Y>-dx), then IIS (FastCGI, PHP 8.4), with
-# the 64-bit PHP and with the 32-bit one.
-ALL_RUNNERS="7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis iis-x86"
+# WoW64), two with cmd.exe's delayed expansion turned on in the registry (<X.Y>-dx), then, on the IIS VM only, IIS
+# (FastCGI, PHP 8.4), with the 64-bit PHP and with the 32-bit one.
+CLI_RUNNERS="7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx"
+IIS_RUNNERS="iis iis-x86"
 
 if [ -t 1 ]; then C_B='\033[0;34m'; C_G='\033[0;32m'; C_R='\033[0;31m'; C_Y='\033[0;33m'; C_0='\033[0m'; else C_B=; C_G=; C_R=; C_Y=; C_0=; fi
 log()  { printf "${C_B}==>${C_0} %s\n" "$*"; }
@@ -51,7 +60,8 @@ usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' 
 # Arguments
 # ---------------------------------------------------------------------------
 KVM_HOST="${WINDOWS_KVM_HOST:-}"
-RUNNERS="${ALL_RUNNERS}"
+VM_NAME="${WINDOWS_VM:-iis}"
+RUNNERS=""
 SRC_DIR="${REPO_ROOT}/src"
 KEEP_VM=0
 ONLY_DOWN=0
@@ -61,6 +71,8 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 		--host)          KVM_HOST="$2"; shift 2;;
 		--host=*)        KVM_HOST="${1#*=}"; shift;;
+		--vm)            VM_NAME="$2"; shift 2;;
+		--vm=*)          VM_NAME="${1#*=}"; shift;;
 		--runner)        RUNNERS="${2//,/ }"; shift 2;;
 		--runner=*)      RUNNERS="${1#*=}"; RUNNERS="${RUNNERS//,/ }"; shift;;
 		-f|--filter)     PHPUNIT_ARGS+=("--filter" "$2"); shift 2;;
@@ -76,12 +88,29 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "${KVM_HOST}" ] || { usage >&2; die "No KVM host: give --host=HOST or set WINDOWS_KVM_HOST."; }
-[ -f "${IISVM}" ] || die "${IISVM} not found. Check out akeeba/buildfiles next to this repository."
+
+# The VM's script and its arguments, and the runners it has: the VMs without IIS have no IIS runners.
+case "${VM_NAME}" in
+	iis)
+		[ -f "${IISVM}" ] || die "${IISVM} not found. Check out akeeba/buildfiles next to this repository."
+		VM_CMD=(bash "${IISVM}")
+		ALL_RUNNERS="${CLI_RUNNERS} ${IIS_RUNNERS}"
+		PROVISION_ARGS=""
+		;;
+	server2025|win11)
+		VM_CMD=(bash "${PFVM}" "--os=${VM_NAME}")
+		ALL_RUNNERS="${CLI_RUNNERS}"
+		PROVISION_ARGS=" -NoIis"
+		;;
+	*) die "Unknown VM '${VM_NAME}': iis, server2025 or win11";;
+esac
+
+RUNNERS="${RUNNERS:-${ALL_RUNNERS}}"
 
 for r in ${RUNNERS}; do
 	case " ${ALL_RUNNERS} " in
 		*" ${r} "*) ;;
-		*) die "Unknown runner '${r}'. Runners: ${ALL_RUNNERS}";;
+		*) die "Unknown runner '${r}' on the ${VM_NAME} VM. Runners: ${ALL_RUNNERS}";;
 	esac
 done
 
@@ -89,13 +118,13 @@ SRC_DIR="$(cd "${SRC_DIR}" && pwd)" || die "--src: no such directory"
 [ -f "${SRC_DIR}/PHPFinder.php" ] && [ -f "${SRC_DIR}/Configuration.php" ] \
 	|| die "${SRC_DIR} has no PHPFinder.php and Configuration.php"
 
-VM() { bash "${IISVM}" --host="${KVM_HOST}" "$@"; }
+VM() { "${VM_CMD[@]}" --host="${KVM_HOST}" "$@"; }
 
 vm_running() { VM status | grep -qx 'running=yes'; }
 
 VM_UP=0
 vm_down() {
-	log "Stopping the Windows VM on ${KVM_HOST}"
+	log "Stopping the ${VM_NAME} Windows VM on ${KVM_HOST}"
 	VM stop || true
 	VM_UP=0
 	ok "VM stopped"
@@ -148,10 +177,10 @@ start_vm() {
 	# Never take over a VM another run is using: iisvm.sh start refuses too, but checking first means the teardown
 	# never stops a VM this run did not start.
 	if vm_running; then
-		die "The Windows VM on ${KVM_HOST} is already running: another run is using it. If it is one of yours (--keep-vm), stop it with: ${SCRIPT_PATH} --host=${KVM_HOST} --down"
+		die "The ${VM_NAME} Windows VM on ${KVM_HOST} is already running: another run is using it. If it is one of yours (--keep-vm), stop it with: ${SCRIPT_PATH} --host=${KVM_HOST} --vm=${VM_NAME} --down"
 	fi
 
-	log "Starting the Windows VM on ${KVM_HOST}"
+	log "Starting the ${VM_NAME} Windows VM on ${KVM_HOST}"
 	# Set first, so that on_exit() stops a VM which started but did not answer.
 	VM_UP=1
 	VM start || die "Could not start the Windows VM."
@@ -168,7 +197,7 @@ provision() {
 
 	log "Provisioning the guest: PHP downloads, runners, fixtures, second drive"
 	PROVISION_LOG="$(mktemp "${TMPDIR:-/tmp}/phpfinder-windows-provision.XXXXXX")"
-	VM ssh 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\pf\provision.ps1' >"${PROVISION_LOG}" 2>&1 || true
+	VM ssh "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\\pf\\provision.ps1${PROVISION_ARGS}" >"${PROVISION_LOG}" 2>&1 || true
 	tr -d '\r' <"${PROVISION_LOG}" | sed 's/^/     /'
 
 	if ! tr -d '\r' <"${PROVISION_LOG}" | tail -n 1 | grep -qx 'PF-PROVISION-OK'; then
@@ -199,14 +228,15 @@ run_suite() {
 
 	log "Running the Windows suite (runner: ${runner})"
 	( cd "${REPO_ROOT}" && \
-		PHPFINDER_WINDOWS_HOST="${KVM_HOST}" PHPFINDER_WINDOWS_RUNNER="${runner}" PHPFINDER_WINDOWS_IISVM="${IISVM}" \
+		PHPFINDER_WINDOWS_HOST="${KVM_HOST}" PHPFINDER_WINDOWS_RUNNER="${runner}" PHPFINDER_WINDOWS_VM="${VM_NAME}" \
+		PHPFINDER_WINDOWS_IISVM="${IISVM}" PHPFINDER_WINDOWS_PFVM="${PFVM}" \
 		"${phpunit}" -c phpunit-windows.xml "${display[@]}" ${PHPUNIT_ARGS[@]+"${PHPUNIT_ARGS[@]}"} )
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-log "PHPFinder Windows harness: KVM host ${KVM_HOST}, runners ${RUNNERS}"
+log "PHPFinder Windows harness: KVM host ${KVM_HOST}, VM ${VM_NAME}, runners ${RUNNERS}"
 start_vm
 provision
 
@@ -219,8 +249,8 @@ done
 echo
 if [ "${KEEP_VM}" -eq 1 ]; then
 	ok "The VM stays up. Iterate with:"
-	echo "     PHPFINDER_WINDOWS_HOST=${KVM_HOST} PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter SomeTest"
-	echo "     ${SCRIPT_PATH} --host=${KVM_HOST} --down   # to stop it"
+	echo "     PHPFINDER_WINDOWS_HOST=${KVM_HOST} PHPFINDER_WINDOWS_VM=${VM_NAME} PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter SomeTest"
+	echo "     ${SCRIPT_PATH} --host=${KVM_HOST} --vm=${VM_NAME} --down   # to stop it"
 fi
 
 if [ -n "${FAILED}" ]; then
@@ -228,5 +258,5 @@ if [ -n "${FAILED}" ]; then
 	finish 1
 fi
 
-ok "Green on: ${RUNNERS}"
+ok "Green on the ${VM_NAME} VM: ${RUNNERS}"
 finish 0

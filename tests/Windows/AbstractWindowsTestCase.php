@@ -112,6 +112,34 @@ abstract class AbstractWindowsTestCase extends TestCase
 	}
 
 	/**
+	 * The Windows VM of this run: "iis" (the shared IIS VM, Windows Server 2022, ../buildfiles/vm/iis), "server2025" or
+	 * "win11" (this project's VMs without WMIC, vm/pfvm.sh).
+	 */
+	protected static function vmName(): string
+	{
+		return getenv('PHPFINDER_WINDOWS_VM') ?: 'iis';
+	}
+
+	/**
+	 * The shell command which runs a VM command (ssh, ps, …) on this run's VM, on the KVM host $host.
+	 */
+	public static function vmCommand(string $host): string
+	{
+		$vm = self::vmName();
+
+		if ($vm === 'iis')
+		{
+			$script = getenv('PHPFINDER_WINDOWS_IISVM') ?: (__DIR__ . '/../../../buildfiles/vm/iis/iisvm.sh');
+
+			return 'bash ' . escapeshellarg($script) . ' --host=' . escapeshellarg($host);
+		}
+
+		$script = getenv('PHPFINDER_WINDOWS_PFVM') ?: (__DIR__ . '/vm/pfvm.sh');
+
+		return 'bash ' . escapeshellarg($script) . ' --os=' . escapeshellarg($vm) . ' --host=' . escapeshellarg($host);
+	}
+
+	/**
 	 * Whether this run's runner is IIS: with the VM's 64-bit PHP 8.4 ("iis"), or with the 32-bit one ("iis-x86").
 	 */
 	protected static function isIis(): bool
@@ -394,13 +422,11 @@ abstract class AbstractWindowsTestCase extends TestCase
 			return;
 		}
 
-		$iisvm = getenv('PHPFINDER_WINDOWS_IISVM') ?: (__DIR__ . '/../../../buildfiles/vm/iis/iisvm.sh');
-		$host  = getenv('PHPFINDER_WINDOWS_HOST');
+		$vm = self::vmCommand((string) getenv('PHPFINDER_WINDOWS_HOST'));
 
 		self::$relayErrors = tempnam(sys_get_temp_dir(), 'phpfinder-relay');
 		self::$relay       = proc_open(
-			'bash ' . escapeshellarg($iisvm) . ' --host=' . escapeshellarg($host) . ' ssh '
-			. escapeshellarg('C:\\pf\\run\\8.4\\php.exe -n C:\\pf\\relay.php'),
+			$vm . ' ssh ' . escapeshellarg('C:\\pf\\run\\8.4\\php.exe -n C:\\pf\\relay.php'),
 			[0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', self::$relayErrors, 'w']],
 			self::$relayPipes
 		);
@@ -408,7 +434,7 @@ abstract class AbstractWindowsTestCase extends TestCase
 		if (!is_resource(self::$relay))
 		{
 			self::$relay = null;
-			self::fail('Could not open an SSH session to the guest through ' . $iisvm);
+			self::fail('Could not open an SSH session to the guest through ' . $vm);
 		}
 
 		register_shutdown_function(

@@ -15,7 +15,7 @@
  *
  * and IIS runs it through iis-probe.php, with the request in the query string.
  *
- * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths" | "drives" | "analyze" | "facts" | "tools",
+ * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths" | "drives" | "analyze" | "facts" | "tools" | "wmic",
  *            "version": "8.3" | null, "config": {"useWhere": true, …}, "path": "C:\\pf\\path-a;…" | null,
  *            "env": {"plesk_dir": "…"}, "arg": "C:\\…\\php.exe" (analyze only), "cwd": "C:\\…" | null,
  *            "windowsDirectory": "C:\\pf\\fakewin\\…" | null}
@@ -31,6 +31,8 @@
  * "drives" and "analyze" call PHPFinder's private getWindowsDrives() and analyzePHPVersion() through a bound
  * closure, as the unit tests do. "facts" returns what the Windows tools print, byte for byte, as PHP's exec() sees it.
  * "tools" returns which of Windows' tools exist at the paths PHPFinder runs them from, as this runner sees them.
+ * "wmic" returns which copies of WMIC.exe exist (System32's, SysWOW64's) and, from a 64-bit CLI runner, the state of
+ * Microsoft's WMIC Feature on Demand.
  *
  * Every PHP diagnostic the call raises (warnings, notices, deprecations; not those silenced with @) is collected and
  * returned, so the suite can assert that the library runs cleanly on each PHP version.
@@ -205,6 +207,30 @@ switch ($request['call'])
 {
 	case 'tools':
 		$result = $tools('System32');
+		break;
+
+	case 'wmic':
+		// Both copies of WMIC.exe, wherever this runner is: a 32-bit one sees the real System32 at Sysnative. And, from a
+		// 64-bit CLI runner (elevated, as the SSH session is; not IIS), Microsoft's WMIC Feature on Demand, as
+		// Get-WindowsCapability lists it: "<name>=<state>", or '' when it lists none (Windows Server 2022).
+		$windows = getenv('SystemRoot');
+		$result  = [
+			'System32' => is_file($windows . '\\' . (PHP_INT_SIZE === 4 ? 'Sysnative' : 'System32') . '\\wbem\\WMIC.exe'),
+			'SysWOW64' => is_file($windows . '\\SysWOW64\\wbem\\WMIC.exe'),
+		];
+
+		if (PHP_INT_SIZE === 8 && PHP_SAPI === 'cli')
+		{
+			$output = [];
+			$status = null;
+			exec(
+				'"' . $windows . '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -NonInteractive -Command '
+				. '"Get-WindowsCapability -Online | Where-Object Name -like \'WMIC*\' | ForEach-Object { $_.Name + \'=\' + $_.State }" 2>&1',
+				$output,
+				$status
+			);
+			$result['capability'] = $status === 0 ? implode(';', array_filter(array_map('trim', $output), 'strlen')) : ('ERROR ' . implode(' ', $output));
+		}
 		break;
 
 	case 'getBestPath':

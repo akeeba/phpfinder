@@ -49,7 +49,7 @@
 		"test": "Run the unit suite, then the Docker integration suite",
 		"test:unit": "Run the in-process unit suite against fake PHP binaries (no Docker)",
 		"test:integration": "Run the integration suite against real PHP CLIs in a throwaway Docker container (tests/Integration/docker/run.sh)",
-		"test:windows": "Opt-in, not part of test: run the library on a real Windows VM (tests/Windows/run.sh; needs WINDOWS_KVM_HOST or -- --host=HOST)"
+		"test:windows": "Opt-in, not part of test: run the library on a real Windows VM (tests/Windows/run.sh; needs WINDOWS_KVM_HOST or -- --host=HOST; -- --vm=server2025 or win11 for Windows without WMIC)"
 	},
 	"archive": {
 		"exclude": [

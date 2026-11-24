@@ -34,6 +34,13 @@ Docker integration suite. Both work on a fresh checkout, given a global `phpunit
   expansion on) and under IIS (with the 64-bit PHP 8.4, and the 32-bit one). Only one run can use the VM at a time: `run.sh` refuses a running VM and stops the one it started on every exit
   path. Never `build --force` or `destroy` the VM, and never change `../buildfiles` from this project.
   `tests/Windows/README.md` explains the fixtures, the options and what the real Windows tools print.
+- **Windows without WMIC** (`tests/Windows/run.sh --vm=server2025` or `--vm=win11`): **opt-in too.** The same suite, on
+  the CLI runners only, on this project's own VMs (`tests/Windows/vm/pfvm.sh`, modelled on `../buildfiles/vm/iis`):
+  Windows Server 2025 Standard (Server Core) and Windows 11 Enterprise, evaluation editions, with Microsoft's WMIC
+  Feature on Demand removed, and no IIS. The first run builds the VM on the KVM host (Windows 11 needs `swtpm` and
+  OVMF with Secure Boot there); `pfvm.sh` rebuilds it when its evaluation licence (180 days for Server, 90 for
+  Windows 11) is about to expire. They may be rebuilt (`pfvm.sh --os=… build --force`) when their tooling changes.
+  `FactsTest::WMIC` records what each VM's WMIC is; `tests/Windows/README.md`, "The VMs without WMIC", the rest.
 - PHPUnit is the **global** `phpunit`: never add `phpunit/phpunit` to `composer.json`. `config.platform.php` is
   `7.2.999` (the minimum supported series, as in the other projects), and `composer.lock` is tracked but holds no
   packages. The test code must run on every PHPUnit from 8.5 to 12: no data-provider annotations or attributes,
