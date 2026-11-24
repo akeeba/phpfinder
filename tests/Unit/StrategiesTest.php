@@ -157,6 +157,40 @@ final class StrategiesTest extends TestCase
 		);
 	}
 
+	public function testWhereReturnsEveryBinaryItLists(): void
+	{
+		$first  = $this->fakePhp('w/one/php.exe', '5.9.1');
+		$second = $this->fakePhp('w/two/php.exe', '5.9.2');
+		$third  = $this->fakePhp('w/three/php59.exe', '5.9.3');
+
+		// Like Windows' `where`: every match on its own line, CRLF line endings; for no match an INFO line on
+		// STDERR and exit code 1.
+		$this->fakeExecutable(
+			'bin/where',
+			"echo \"\$*\" >> '" . $this->root() . "/where.log'\n"
+			. "case \"\$1\" in\n"
+			. "  php) printf '%s\\r\\n' '" . $first . "' '" . $second . "' ;;\n"
+			. "  php59) printf '%s\\r\\n' '" . $third . "' ;;\n"
+			. "  *) echo 'INFO: Could not find files for the given pattern(s).' >&2; exit 1 ;;\n"
+			. "esac\n"
+		);
+
+		$finder = $this->simulateOs($this->finder(['useWhere' => true]), 'Windows');
+
+		// exec() returns only the LAST line of the output, and that was all that was used: when `where` listed
+		// several binaries, only the last one was kept.
+		[$paths, $diagnostics] = $this->withDiagnostics(function () use ($finder) {
+			return $this->callPrivate($finder, 'pathsUsingWhere', ['5.9']);
+		});
+
+		$this->assertSame([$first, $second, $third], $paths);
+		$this->assertSame([], $diagnostics);
+		$this->assertContains('php', $this->whereLog());
+		$this->assertContains('php59', $this->whereLog());
+
+		$this->assertSame([], $this->callPrivate($this->simulateOs($this->finder(['useWhere' => false]), 'Windows'), 'pathsUsingWhere', ['5.9']));
+	}
+
 	public function testHomebrewFindsTheVersionedFormula(): void
 	{
 		$expected = $this->fakeBrew();
@@ -296,6 +330,16 @@ final class StrategiesTest extends TestCase
 		);
 
 		return $php59;
+	}
+
+	/**
+	 * The fake where's invocations, one array element per call.
+	 *
+	 * @return  string[]
+	 */
+	private function whereLog(): array
+	{
+		return array_map('trim', @file($this->root() . '/where.log') ?: []);
 	}
 
 	/**

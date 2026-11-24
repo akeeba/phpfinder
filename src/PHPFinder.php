@@ -441,17 +441,17 @@ final class PHPFinder
 
 		foreach ($possibleExecutables as $executable)
 		{
-			$where = @exec('where ' . escapeshellarg($executable), $output, $resultCode);
+			// exec() returns only the last line, and appends to $output: start afresh for each name.
+			$output = [];
+			$where  = @exec('where ' . escapeshellarg($executable), $output, $resultCode);
 
 			if ($where === false || $resultCode !== 0)
 			{
 				continue;
 			}
 
-			$paths = explode("\n", $where);
-			$paths = array_filter($paths);
-
-			$ret = array_merge($ret, $paths);
+			// One path per line, for every match in the PATH.
+			$ret = array_merge($ret, array_filter(array_map('trim', $output)));
 		}
 
 		return $ret;
