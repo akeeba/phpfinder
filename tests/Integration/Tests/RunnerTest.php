@@ -61,26 +61,15 @@ final class RunnerTest extends AbstractIntegrationTestCase
 
 	public function testBestPathWithoutAVersionReturnsTheRunner(): void
 	{
-		$this->expectKnownBug(
-			'getBestPathMeta(null) with validateVersion (the default) calls strpos($version, null). On PHP 7 a '
-			. 'null needle is chr(0), which never matches: getBestPath() without a version ALWAYS returns NULL.',
-			function () {
-				$this->assertSame(self::RUNNER, $this->probe('getBestPath', null)['result']);
-			},
-			version_compare($this->runner(), '8.0', '<')
-		);
+		// Used to be NULL on PHP 7: the version was validated with strpos($version, null).
+		$this->assertSame(self::RUNNER, $this->probe('getBestPath', null)['result']);
+		$this->assertSame(self::RUNNER, $this->probe('getBestPath', '')['result']);
 	}
 
 	public function testBestPathWithoutAVersionRaisesNoDiagnostics(): void
 	{
-		$this->expectKnownBug(
-			'getBestPathMeta(null) with validateVersion (the default) calls strpos($version, null): a "Non-string '
-			. 'needles" deprecation on PHP 7.3/7.4, and "Passing null to parameter #2 ($needle)" on PHP 8.1+.',
-			function () {
-				$this->assertNoDiagnostics($this->probe('getBestPath', null));
-			},
-			$this->runner() !== '8.0'
-		);
+		// Used to raise a strpos() deprecation for the null needle on PHP 7.3/7.4 and 8.1+.
+		$this->assertNoDiagnostics($this->probe('getBestPath', null));
 	}
 
 	public function testBestPathWithoutAVersionAndValidationReturnsTheRunner(): void

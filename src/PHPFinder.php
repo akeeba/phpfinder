@@ -55,7 +55,9 @@ final class PHPFinder
 	 * If the version is not found, it will return NULL.
 	 *
 	 * If no version is specified, any PHP CLI binary will be returned; not necessarily the one with the latest PHP
-	 * version!
+	 * version! A NULL or empty version means "any version": there is no version to validate against, so
+	 * Configuration::$validateVersion has no effect. The binary must still run and report a PHP version, and
+	 * Configuration::$validateCli still applies.
 	 *
 	 * If no suitable executable is found (there is no PHP CLI executable installed, or it uses an uncommon path) NULL
 	 * will be returned as well.
@@ -101,7 +103,12 @@ final class PHPFinder
 				continue;
 			}
 
-			if ($this->configuration->validateVersion && strpos($info->version, $version) === false)
+			// Without a version there is nothing to validate the binary's version against: any PHP will do.
+			if (
+				$this->configuration->validateVersion
+				&& !empty($version)
+				&& strpos($info->version, $version) === false
+			)
 			{
 				continue;
 			}

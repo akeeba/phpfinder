@@ -74,10 +74,9 @@ constants strategy.
 the PHP versions which **execute the library**:
 
 - **7.4**: the oldest PHP with a shared image. PHP 7 semantics matter here: `strpos()` with a `null` needle
-  never matches, which is why `getBestPath()` without a version returns `NULL` on PHP 7 (a known bug the
-  suite documents).
+  never matches, which is how `getBestPath()` without a version used to return `NULL` on PHP 7.
 - **8.1**: the first PHP to deprecate `null` for internal string parameters, which the same code path
-  then triggers.
+  used to trigger.
 - **8.5**: the day-to-day default (`PHP_VERSION`).
 - **8.6**: the newest PHP `composer.json` allows, and the newest stable PHP.
 

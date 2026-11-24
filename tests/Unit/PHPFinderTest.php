@@ -229,36 +229,49 @@ final class PHPFinderTest extends TestCase
 
 	public function testBestPathWithoutAVersionFindsTheCurrentInterpreter(): void
 	{
-		$this->expectKnownBug(
-			'getBestPathMeta(null) with validateVersion (the default) calls strpos($version, null). On PHP 7 a '
-			. 'null needle is the character chr(0), which never matches, so getBestPath() without a version '
-			. 'ALWAYS returns NULL there.',
-			function () {
-				[$result] = $this->withDiagnostics(function () {
-					return (new PHPFinder())->getBestPath();
-				});
+		// Used to be NULL on PHP 7: the version was validated with strpos($version, null).
+		[$result] = $this->withDiagnostics(function () {
+			return (new PHPFinder())->getBestPath();
+		});
 
-				$this->assertSame(PHP_BINARY, $result);
-			},
-			PHP_MAJOR_VERSION < 8
-		);
+		$this->assertSame(PHP_BINARY, $result);
+
+		// An empty string means "any version" too.
+		[$result] = $this->withDiagnostics(function () {
+			return (new PHPFinder())->getBestPath('');
+		});
+
+		$this->assertSame(PHP_BINARY, $result);
 	}
 
 	public function testBestPathWithoutAVersionRaisesNoDiagnostics(): void
 	{
-		$this->expectKnownBug(
-			'getBestPathMeta(null) with validateVersion (the default) calls strpos($version, null): "Non-string '
-			. 'needles" deprecation on PHP 7.3/7.4, "Passing null to parameter #2 ($needle)" deprecation on PHP 8.1+ '
-			. '(a TypeError once PHP makes that fatal).',
-			function () {
-				[, $diagnostics] = $this->withDiagnostics(function () {
-					return (new PHPFinder())->getBestPath();
-				});
+		// Used to raise a strpos() deprecation for the null needle on PHP 7.3/7.4 and 8.1+.
+		[, $diagnostics] = $this->withDiagnostics(function () {
+			return (new PHPFinder())->getBestPath();
+		});
 
-				$this->assertSame([], $diagnostics);
-			},
-			PHP_VERSION_ID >= 70300 && !(PHP_VERSION_ID >= 80000 && PHP_VERSION_ID < 80100)
-		);
+		$this->assertSame([], $diagnostics);
+	}
+
+	public function testBestPathWithoutAVersionStillValidatesTheBinary(): void
+	{
+		// Without a version, a binary still has to report a PHP version, and the CLI SAPI when validateCli is on.
+		$cgi = $this->fakePhp('bin/php', '5.9.1', 'cgi-fcgi');
+
+		$this->assertNotContains($cgi, [$this->finder(['useWhich' => true])->getBestPath()]);
+
+		$meta = $this->finder(['useWhich' => true, 'validateCli' => false])->getBestPathMeta();
+
+		$this->assertIsObject($meta);
+		$this->assertNotNull($meta->version);
+
+		if (!$this->hostHasGenericPhp())
+		{
+			$this->assertNull($this->finder(['useWhich' => true])->getBestPath());
+			$this->assertSame($cgi, $meta->path);
+			$this->assertSame('5.9.1', $meta->version);
+		}
 	}
 
 	public function testBestPathWithoutAVersionAndWithoutValidationReturnsACli(): void
