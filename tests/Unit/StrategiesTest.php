@@ -191,6 +191,43 @@ final class StrategiesTest extends TestCase
 		$this->assertSame([], $this->callPrivate($this->simulateOs($this->finder(['useWhere' => false]), 'Windows'), 'pathsUsingWhere', ['5.9']));
 	}
 
+	public function testWindowsDrivesFromWmic(): void
+	{
+		// `wmic logicaldisk get name`, as it prints through a pipe: a header, each name padded to the column
+		// width with spaces, \r\r\n line endings, and a blank line at the end. exec() strips the trailing
+		// whitespace, \r included, from every line it puts in its output array, so no drive is padded.
+		$this->fakeExecutable(
+			'bin/wmic',
+			"[ \"\$*\" = 'logicaldisk get name' ] || exit 2\n"
+			. "printf 'Name  \\r\\r\\nC:    \\r\\r\\nD:    \\r\\r\\n\\r\\r\\n'\n"
+		);
+		$this->fakeExecutable('bin/fsutil', "echo \"\$*\" >> '" . $this->root() . "/fsutil.log'\nexit 1\n");
+
+		[$drives, $diagnostics] = $this->withDiagnostics(function () {
+			return $this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives');
+		});
+
+		$this->assertSame(['C:', 'D:'], array_values($drives));
+		$this->assertSame([], $diagnostics);
+		$this->assertFalse(is_file($this->root() . '/fsutil.log'), 'fsutil was run although wmic answered');
+	}
+
+	public function testWindowsDrivesFromFsutil(): void
+	{
+		// No wmic (removed from recent Windows 11 releases): `fsutil fsinfo drives` prints a blank line, then
+		// "Drives: C:\ D:\ " on one line.
+		$this->fakeExecutable(
+			'bin/fsutil',
+			"[ \"\$*\" = 'fsinfo drives' ] || exit 2\n"
+			. "printf '\\r\\nDrives: C:\\\\ D:\\\\ E:\\\\ \\r\\n'\n"
+		);
+
+		$this->assertSame(
+			['C:', 'D:', 'E:'],
+			array_values($this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives'))
+		);
+	}
+
 	public function testHomebrewFindsTheVersionedFormula(): void
 	{
 		$expected = $this->fakeBrew();
