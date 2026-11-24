@@ -104,6 +104,9 @@ final class Configuration
 	 *
 	 * Available on Linux and macOS. Moderately slow (about 0.1 second).
 	 *
+	 * This only controls running `which`. The standard locations, /usr/bin, /usr/local/bin and /opt/bin, are
+	 * searched whenever $osSpecific is enabled.
+	 *
 	 * Default: true
 	 *
 	 * @var    bool

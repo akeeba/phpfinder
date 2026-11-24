@@ -14,6 +14,9 @@ use Akeeba\PHPFinder\Tests\Integration\AbstractIntegrationTestCase;
 /**
  * The software-specific paths (Plesk, cPanel, CloudLinux) on Linux, plus the Debian-style phpX.Y name,
  * which the Plesk candidates and the generic binary names both cover.
+ *
+ * The software-specific searches are looked at with osSpecific off: the fixed UNIX paths, which it
+ * switches on, would find several fixtures first.
  */
 final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 {
@@ -25,7 +28,7 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 		$this->assertFixture(self::CPANEL_80_MISLABELLED, '8.2');
 
 		// "8.0" used to be treated as the bare major "8", for which there are no cPanel paths at all.
-		$response = $this->probe('getPossiblePaths', '8.0', self::isolated(['softwareSpecific' => true]));
+		$response = $this->probe('getPossiblePaths', '8.0', self::isolated(['softwareSpecific' => true, 'osSpecific' => false]));
 
 		$this->assertNoDiagnostics($response);
 		$this->assertContains(self::CPANEL_80_MISLABELLED, $response['result']);
@@ -33,19 +36,19 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 		// Without version validation, it is the first (and only) software-specific candidate which exists.
 		$this->assertSame(
 			self::CPANEL_80_MISLABELLED,
-			$this->bestPath('8.0', self::isolated(['softwareSpecific' => true, 'validateVersion' => false]))
+			$this->bestPath('8.0', self::isolated(['softwareSpecific' => true, 'osSpecific' => false, 'validateVersion' => false]))
 		);
 
 		// With it, a PHP 8.2 is never accepted as 8.0.
-		$this->assertNull($this->bestPath('8.0', self::isolated(['softwareSpecific' => true])));
+		$this->assertNull($this->bestPath('8.0', self::isolated(['softwareSpecific' => true, 'osSpecific' => false])));
 	}
 
 	public function testPleskCandidatesFindTheDottedName(): void
 	{
 		$this->assertFixture(self::DOTTED_82, '8.2');
 
-		$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', self::isolated(['softwareSpecific' => true])));
-		$this->assertNull($this->bestPath('8.2', self::isolated(['softwareSpecific' => false])));
+		$this->assertSame(self::DOTTED_82, $this->bestPath('8.2', self::isolated(['softwareSpecific' => true, 'osSpecific' => false])));
+		$this->assertNull($this->bestPath('8.2', self::isolated(['softwareSpecific' => false, 'osSpecific' => false])));
 	}
 
 	public function testTheDottedNameIsFoundWithoutSoftwareSpecificPaths(): void
@@ -59,7 +62,7 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 		$this->assertFixture(self::CPANEL_84, '8.4');
 
 		// Used to be skipped on Linux: the OS check was inverted.
-		$this->assertSame(self::CPANEL_84, $this->bestPath('8.4', self::isolated(['softwareSpecific' => true])));
+		$this->assertSame(self::CPANEL_84, $this->bestPath('8.4', self::isolated(['softwareSpecific' => true, 'osSpecific' => false])));
 	}
 
 	public function testCloudLinuxPathIsFound(): void
@@ -67,12 +70,18 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 		$this->assertFixture(self::CLOUDLINUX_83, '8.3');
 
 		// Used to be skipped on Linux: the OS check was inverted.
-		$this->assertSame(self::CLOUDLINUX_83, $this->bestPath('8.3', self::isolated(['softwareSpecific' => true])));
+		$this->assertSame(self::CLOUDLINUX_83, $this->bestPath('8.3', self::isolated(['softwareSpecific' => true, 'osSpecific' => false])));
 	}
 
 	public function testSoftwareSpecificPathsAreGated(): void
 	{
-		$this->assertNull($this->bestPath('8.4', self::isolated(['softwareSpecific' => false])));
-		$this->assertNull($this->bestPath('8.3', self::isolated(['softwareSpecific' => false])));
+		foreach (['8.4' => self::CPANEL_84, '8.3' => self::CLOUDLINUX_83] as $version => $binary)
+		{
+			$this->assertNotContains(
+				$binary,
+				$this->probe('getPossiblePaths', (string) $version, self::isolated(['softwareSpecific' => false]))['result'],
+				"PHP $version"
+			);
+		}
 	}
 }

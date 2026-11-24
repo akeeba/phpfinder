@@ -130,8 +130,9 @@ final class PHPFinderTest extends TestCase
 
 	public function testUseConstantsGatesPhpBinary(): void
 	{
-		$this->assertContains(PHP_BINARY, $this->finder(['useConstants' => true])->getPossiblePaths());
-		$this->assertNotContains(PHP_BINARY, $this->finder(['useConstants' => false])->getPossiblePaths());
+		// Without osSpecific: PHP_BINARY may also be one of the fixed UNIX paths, e.g. /usr/local/bin/php.
+		$this->assertContains(PHP_BINARY, $this->finder(['useConstants' => true, 'osSpecific' => false])->getPossiblePaths());
+		$this->assertNotContains(PHP_BINARY, $this->finder(['useConstants' => false, 'osSpecific' => false])->getPossiblePaths());
 	}
 
 	public function testCurrentInterpreterIsFoundForItsOwnVersion(): void

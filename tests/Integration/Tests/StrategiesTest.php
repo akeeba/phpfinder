@@ -14,7 +14,8 @@ use Akeeba\PHPFinder\Tests\Integration\AbstractIntegrationTestCase;
 /**
  * Each OS search strategy, alone, with the real system tools of a Debian container: which, the fixed UNIX
  * paths, whereis and update-alternatives. Each fixture is placed where only the strategy under test can
- * find it, so switching that strategy off must make the result NULL.
+ * find it, so switching that strategy off must drop it from the candidates. The fixed UNIX paths are
+ * searched whenever osSpecific is on, and find a PHP 8.2, 8.3 and 8.4 of their own.
  */
 final class StrategiesTest extends AbstractIntegrationTestCase
 {
@@ -49,7 +50,11 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 
 	public function testWhichIsGated(): void
 	{
-		$this->assertNull($this->bestPath('8.2', self::isolated(['useWhich' => false]), self::PATH_WITH_WHICH_DIR));
+		// Not NULL: the fixed UNIX paths, searched without `which`, still find /usr/bin/php8.2.
+		$this->assertNotContains(
+			self::WHICH_82,
+			$this->probe('getPossiblePaths', '8.2', self::isolated(['useWhich' => false]), self::PATH_WITH_WHICH_DIR)['result']
+		);
 		$this->assertNull(
 			$this->bestPath('8.2', self::isolated(['useWhich' => true, 'osSpecific' => false]), self::PATH_WITH_WHICH_DIR)
 		);
@@ -59,14 +64,16 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 	{
 		$this->assertFixture(self::UNIX_83, '8.3');
 
-		$this->assertSame(self::UNIX_83, $this->bestPath('8.3', self::isolated(['useWhich' => true])));
+		// useWhich only controls running `which`. It used to switch the fixed UNIX paths off too.
+		$this->assertSame(self::UNIX_83, $this->bestPath('8.3', self::isolated(['useWhich' => false])));
 		$this->assertContains(
 			self::UNIX_83,
-			$this->probe('getPossiblePaths', '8.3', self::isolated(['useWhich' => true]))['result']
+			$this->probe('getPossiblePaths', '8.3', self::isolated(['useWhich' => false]))['result']
 		);
+		$this->assertSame(self::UNIX_83, $this->bestPath('8.3', self::isolated(['useWhich' => true])));
 
-		// The fixed paths are switched off together with `which`.
-		$this->assertNull($this->bestPath('8.3', self::isolated(['useWhich' => false])));
+		// osSpecific switches them off.
+		$this->assertNull($this->bestPath('8.3', self::isolated(['osSpecific' => false])));
 	}
 
 	public function testWhereIsFindsABinaryOnlyItSearches(): void
@@ -92,7 +99,10 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 
 	public function testWhereIsIsGated(): void
 	{
-		$this->assertNull($this->bestPath('8.2', self::isolated(['useWhereIs' => false])));
+		// Not NULL: the fixed UNIX paths still find /usr/bin/php8.2.
+		$this->assertNotContains(
+			self::WHEREIS_82, $this->probe('getPossiblePaths', '8.2', self::isolated(['useWhereIs' => false]))['result']
+		);
 		$this->assertNull($this->bestPath('8.2', self::isolated(['useWhereIs' => true, 'osSpecific' => false])));
 	}
 
@@ -107,11 +117,23 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 		$config = self::isolated(['useUpdateAlternatives' => true]);
 
 		$this->assertContains(self::ALTERNATIVES_84, $this->probe('getPossiblePaths', '8.4', $config)['result']);
-		$this->assertSame(self::ALTERNATIVES_84, $this->bestPath('8.4', $config));
+
+		// The fixed UNIX paths come first, and find /usr/local/bin/php84-cli; without the extended binary names
+		// they have no PHP 8.4 (/opt/bin/php84 is really 8.2).
+		$this->assertSame(
+			self::ALTERNATIVES_84,
+			$this->bestPath('8.4', self::isolated(['useUpdateAlternatives' => true, 'extendedBinaryNameSearch' => false]))
+		);
 	}
 
 	public function testUpdateAlternativesIsGated(): void
 	{
-		$this->assertNull($this->bestPath('8.4', self::isolated(['useUpdateAlternatives' => false])));
+		$this->assertNotContains(
+			self::ALTERNATIVES_84,
+			$this->probe('getPossiblePaths', '8.4', self::isolated(['useUpdateAlternatives' => false]))['result']
+		);
+		$this->assertNull(
+			$this->bestPath('8.4', self::isolated(['useUpdateAlternatives' => false, 'extendedBinaryNameSearch' => false]))
+		);
 	}
 }

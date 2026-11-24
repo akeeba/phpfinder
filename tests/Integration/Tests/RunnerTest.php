@@ -45,17 +45,18 @@ final class RunnerTest extends AbstractIntegrationTestCase
 
 	public function testTheConstantsAloneFindTheRunner(): void
 	{
-		$this->assertSame(self::RUNNER, $this->bestPath($this->runner(), self::isolated(['useConstants' => true])));
-		$this->assertSame(
-			[self::RUNNER],
-			$this->probe('getPossiblePaths', $this->runner(), self::isolated(['useConstants' => true]))['result']
-		);
-		$this->assertNull($this->bestPath($this->runner(), self::isolated()));
+		// Without osSpecific: the runner, /usr/local/bin/php, is also one of the fixed UNIX paths.
+		$constants = self::isolated(['useConstants' => true, 'osSpecific' => false]);
+
+		$this->assertSame(self::RUNNER, $this->bestPath($this->runner(), $constants));
+		$this->assertSame([self::RUNNER], $this->probe('getPossiblePaths', $this->runner(), $constants)['result']);
+		$this->assertNull($this->bestPath($this->runner(), self::isolated(['osSpecific' => false])));
 	}
 
 	public function testTheFixedUnixPathsFindTheRunner(): void
 	{
-		// /usr/local/bin/php is a fixed UNIX candidate (and `which php` finds it too).
+		// /usr/local/bin/php is a fixed UNIX candidate, searched without `which` (which finds it too).
+		$this->assertSame(self::RUNNER, $this->bestPath($this->runner(), self::isolated()));
 		$this->assertSame(self::RUNNER, $this->bestPath($this->runner(), self::isolated(['useWhich' => true])));
 	}
 
