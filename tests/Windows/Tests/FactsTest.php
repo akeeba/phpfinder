@@ -31,6 +31,21 @@ final class FactsTest extends AbstractWindowsTestCase
 		return self::$facts;
 	}
 
+	public function testTheRunnerIsTheOneAskedFor(): void
+	{
+		// IIS runs the probe through FastCGI (php-cgi.exe): 64-bit PHP 8.4 for "iis", 32-bit for "iis-x86" (the /pf-x86
+		// application, in an application pool with 32-bit applications enabled).
+		$response = $this->probe('tools', null);
+
+		$this->assertSame(self::isIis() ? 'cgi-fcgi' : 'cli', $response['sapi']);
+		$this->assertSame(self::isX86() ? 32 : 64, $response['bits']);
+
+		if (self::isIis())
+		{
+			$this->assertSame('8.4', $response['runner']);
+		}
+	}
+
 	public function testWindowsToolsAreWherePHPFinderRunsThemFrom(): void
 	{
 		// PHPFinder runs them by these full paths, in the Windows directory (SystemRoot).

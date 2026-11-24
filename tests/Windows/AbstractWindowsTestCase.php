@@ -111,9 +111,12 @@ abstract class AbstractWindowsTestCase extends TestCase
 		return getenv('PHPFINDER_WINDOWS_RUNNER') ?: '8.4';
 	}
 
+	/**
+	 * Whether this run's runner is IIS: with the VM's 64-bit PHP 8.4 ("iis"), or with the 32-bit one ("iis-x86").
+	 */
 	protected static function isIis(): bool
 	{
-		return self::runnerName() === 'iis';
+		return in_array(self::runnerName(), ['iis', 'iis-x86'], true);
 	}
 
 	/**

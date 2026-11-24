@@ -289,5 +289,21 @@ Copy-Item "$pf\iis-probe.php" C:\inetpub\wwwroot\pf-probe.php
 $page = (Invoke-WebRequest -UseBasicParsing 'http://localhost/pf-probe.php?ping=1').Content
 if ($page -ne 'pf-probe-ok') { throw "IIS probe answered: $page" }
 
+# And by IIS with a 32-bit PHP: the application /pf-x86, in its own application pool with 32-bit applications enabled
+# (a 32-bit w3wp.exe), whose *.php go to the x86 runner's php-cgi.exe (PHP 8.4), with the VM's php.ini (no extensions;
+# fastcgi.impersonate=1). Nothing else changes: the site's own *.php still go to C:\php\php-cgi.exe.
+$appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+$cgi86  = "$($runners['8.4-x86'])\php-cgi.exe"
+Copy-Item C:\php\php.ini "$($runners['8.4-x86'])\php.ini"
+New-Item -ItemType Directory -Force C:\inetpub\pf-x86 | Out-Null
+Copy-Item "$pf\iis-probe.php" C:\inetpub\pf-x86\pf-probe.php
+& $appcmd add apppool /name:pf-x86 /enable32BitAppOnWin64:true | Out-Null
+& $appcmd add app /site.name:"Default Web Site" /path:/pf-x86 /physicalPath:C:\inetpub\pf-x86 /applicationPool:pf-x86 | Out-Null
+& $appcmd set config -section:system.webServer/fastCgi "/+[fullPath='$cgi86',instanceMaxRequests='1']" /commit:apphost | Out-Null
+& $appcmd set config "Default Web Site/pf-x86" -section:system.webServer/handlers "/-[name='PHP_via_FastCGI']" /commit:apphost | Out-Null
+& $appcmd set config "Default Web Site/pf-x86" -section:system.webServer/handlers "/+[name='PHP_x86_via_FastCGI',path='*.php',verb='*',modules='FastCgiModule',scriptProcessor='$cgi86',resourceType='Either']" /commit:apphost | Out-Null
+$page = (Invoke-WebRequest -UseBasicParsing 'http://localhost/pf-x86/pf-probe.php?ping=1&bits=1').Content
+if ($page -ne 'pf-probe-ok 32') { throw "IIS x86 probe answered: $page" }
+"IIS x86: $page"
 
 'PF-PROVISION-OK'

@@ -14,7 +14,7 @@
  *
  * The host-side suite (AbstractWindowsTestCase) keeps that SSH session open and writes one JSON request per line:
  *
- *   {"runner": "8.5" | "8.4-x86" | "8.4-dx" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
+ *   {"runner": "8.5" | "8.4-x86" | "8.4-dx" | "iis" | "iis-x86", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
  *
  * With "noProcOpen", the probe runs with proc_open() disabled (-d disable_functions=proc_open), so that the library
  * falls back to exec(); not for "iis", whose php.ini the relay cannot change per request.
@@ -76,10 +76,11 @@ while (($line = fgets($stdin)) !== false)
 	$runner  = is_array($message) ? (string) ($message['runner'] ?? '') : '';
 	$request = is_array($message) ? (string) ($message['request'] ?? '') : '';
 
-	if ($runner === 'iis')
+	if ($runner === 'iis' || $runner === 'iis-x86')
 	{
 		$context  = stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 300]]);
-		$body     = @file_get_contents('http://localhost/pf-probe.php?r=' . rawurlencode($request), false, $context);
+		$url      = 'http://localhost/' . ($runner === 'iis' ? '' : 'pf-x86/') . 'pf-probe.php?r=' . rawurlencode($request);
+		$body     = @file_get_contents($url, false, $context);
 		$status   = 0;
 
 		foreach ($http_response_header ?? [] as $header)

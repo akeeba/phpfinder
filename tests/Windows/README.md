@@ -24,7 +24,7 @@ and the Windows code paths are checked against the real thing.
 ## Quick start
 
 ```bash
-tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, -dx, then IIS
+tests/Windows/run.sh --host=<ssh host>             # every runner: PHP 7.2 … 8.6, 32-bit 7.2 and 8.4, -dx, then IIS (64, 32-bit)
 WINDOWS_KVM_HOST=<ssh host> composer test:windows  # the same
 tests/Windows/run.sh --host=<ssh host> --runner=7.2,iis --filter DrivesTest
 ```
@@ -36,7 +36,7 @@ There is no default host: without `--host` or `WINDOWS_KVM_HOST`, `run.sh` stops
 | Option | What it does |
 |---|---|
 | `--host=HOST` | The KVM host (an SSH destination, or `local`). Default: `WINDOWS_KVM_HOST` |
-| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis` (default: all) |
+| `--runner=LIST` | Only these runners, comma or space separated: `7.2 8.0 8.1 8.2 8.3 8.4 8.5 8.6 7.2-x86 8.4-x86 7.2-dx 8.4-dx iis iis-x86` (default: all) |
 | `-f`, `--filter=NAME` | Passed to PHPUnit as `--filter` |
 | `--src=DIR` | Put this directory's `PHPFinder.php` and `Configuration.php` into the guest instead of `src/`, e.g. a revision exported with `git show <rev>:src/…`, to show a test failing on the code before a fix |
 | `--keep-vm` | Leave the VM running afterwards, to iterate with `PHPFINDER_WINDOWS_HOST=HOST PHPFINDER_WINDOWS_RUNNER=8.5 phpunit -c phpunit-windows.xml --filter …` |
@@ -60,12 +60,14 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
    - attaches a VHD as **`D:`** (see "A second drive" below);
    - copies the top-level files of real PHP builds (`php.exe`, `php-cgi.exe`, the DLLs; no extensions, everything runs
      with `-n`) to every location a search strategy looks in: the **fixtures**, each checked by running it;
-   - makes IIS run `pf-probe.php` (`guest/iis-probe.php`) with one `php-cgi.exe` per request.
+   - makes IIS run `pf-probe.php` (`guest/iis-probe.php`) with one `php-cgi.exe` per request: the VM's 64-bit PHP 8.4
+     for the site, and the 32-bit 8.4 runner's for the application `/pf-x86` (`C:\inetpub\pf-x86`), which has its own
+     application pool, with 32-bit applications enabled, its own `*.php` handler, and a copy of the VM's `php.ini`.
 3. PHPUnit runs once per runner. The suite keeps one SSH session open to `guest/relay.php` for the whole run (each SSH
    round trip takes about two seconds); the relay runs `C:\pf\run\<X.Y>\php.exe -n C:\pf\probe.php <request>` for each
    test, without a shell, in an empty working directory, and sends back its STDOUT and STDERR apart. For the `iis`
-   runner it requests `http://localhost/pf-probe.php?r=<request>` instead: IIS runs the library as a web site's PHP
-   does, through FastCGI, as the site's identity.
+   runner it requests `http://localhost/pf-probe.php?r=<request>` instead (`iis-x86`: `/pf-x86/pf-probe.php`): IIS runs
+   the library as a web site's PHP does, through FastCGI, as the site's identity.
 
 | Fixture | Real PHP | Exercises |
 |---|---|---|
@@ -248,8 +250,8 @@ newest), except 7.3 and 7.4, plus **IIS** (FastCGI, PHP 8.4), which is how a web
 is covered here although the Docker suite cannot cover it. All are 64-bit non-thread-safe builds, except the two
 32-bit (x86) ones, **7.2-x86** (the floor) and **8.4-x86** (a current release), which run under WoW64 (see "What the
 real Windows prints"). **7.2-dx** and **8.4-dx** are the 7.2 and 8.4 runners with `cmd.exe`'s delayed expansion on
-(see "`cmd.exe`'s delayed expansion"). Thread-safe builds, and IIS running a 32-bit PHP (an application pool with 32-bit
-applications enabled), are not tested.
+(see "`cmd.exe`'s delayed expansion"). **iis-x86** is IIS running the 32-bit PHP 8.4 (`php-cgi.exe`, through FastCGI, from a
+32-bit `w3wp.exe`): the whole suite passes there unchanged. Thread-safe builds are not tested.
 
 Each PHP version downloads 25 to 40 MB per run (there is no cache across runs), all in parallel: a few seconds on a fast
 connection.
