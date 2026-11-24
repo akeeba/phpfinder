@@ -156,6 +156,10 @@ final class Configuration
 	 *
 	 * This is moderately slow; it depends on how many drive letters you have, and what they are mapped to.
 	 *
+	 * Security: the binaries found in these directories are executed to validate their version. Disable this option
+	 * if untrusted users can write to any of them (e.g. the root of a drive), or only administrators should be
+	 * able to.
+	 *
 	 * Default: true
 	 *
 	 * @var    bool
