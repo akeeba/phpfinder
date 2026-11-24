@@ -238,12 +238,95 @@ final class StrategiesTest extends TestCase
 
 		$finder = $this->simulateOs($this->finder(), 'Windows');
 
-		$this->expectKnownBug(
-			'getWindowsDrives() returns [] when wmic runs but lists no drive letter: exec() did not return false, so '
-			. 'neither the fsutil fallback nor %SYSTEMDRIVE% is tried (known-issues row 23).',
-			function () use ($finder) {
-				$this->assertSame(['C:', 'D:'], array_values($this->callPrivate($finder, 'getWindowsDrives')));
-			}
+		// Used to return []: exec() did not return false, so neither fsutil nor %SYSTEMDRIVE% was tried.
+		$this->assertSame(['C:', 'D:'], $this->callPrivate($finder, 'getWindowsDrives'));
+	}
+
+	public function testWindowsDriveListsIgnoreErrorMessages(): void
+	{
+		// wmic, fsutil and PowerShell all exist; the first two print an error on STDOUT. Error lines used to be taken
+		// for drives: "ERROR:" (any wmic line with a colon), "Access", "is", "denied." (fsutil's words after "Error:").
+		$this->fakeExecutable('bin/wmic', "printf 'ERROR:\\r\\nDescription = Access denied.\\r\\n'\nexit 1\n");
+		$this->fakeExecutable('bin/fsutil', "printf 'Error:  Access is denied.\\r\\n'\nexit 1\n");
+		$this->fakeExecutable('bin/powershell', "printf 'C:\\\\\\r\\nE:\\\\\\r\\n'\n");
+
+		$this->assertSame(
+			['C:', 'E:'],
+			$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
+		);
+	}
+
+	public function testWindowsDrivesFromPowerShell(): void
+	{
+		// Neither wmic nor fsutil: PowerShell's [IO.DriveInfo]::GetDrives(), one "X:\" per line.
+		$this->fakeExecutable(
+			'bin/powershell',
+			"case \"\$*\" in *GetDrives*) ;; *) exit 2 ;; esac\n"
+			. "printf 'C:\\\\\\r\\nD:\\\\\\r\\n'\n"
+		);
+
+		$this->assertSame(
+			['C:', 'D:'],
+			$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
+		);
+	}
+
+	public function testWindowsDrivesAlwaysIncludeTheSystemDrive(): void
+	{
+		$savedSystemDrive = getenv('SYSTEMDRIVE');
+		putenv('SYSTEMDRIVE=Q:');
+
+		try
+		{
+			// No tool lists any drive: only the system drive.
+			$this->fakeExecutable('bin/wmic', "printf '\\r\\r\\n\\r\\r\\n'\n");
+			$this->assertSame(['Q:'], $this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives'));
+
+			// The tools do not list the system drive: it comes first.
+			$this->fakeExecutable('bin/wmic', "printf 'Name  \\r\\r\\nC:    \\r\\r\\nD:    \\r\\r\\n'\n");
+			$this->assertSame(
+				['Q:', 'C:', 'D:'],
+				$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
+			);
+		}
+		finally
+		{
+			putenv($savedSystemDrive === false ? 'SYSTEMDRIVE' : ('SYSTEMDRIVE=' . $savedSystemDrive));
+		}
+
+		// Without SYSTEMDRIVE, C:.
+		putenv('SYSTEMDRIVE');
+
+		try
+		{
+			$this->fakeExecutable('bin/wmic', "printf 'Name  \\r\\r\\nD:    \\r\\r\\n'\n");
+			$this->assertSame(
+				['C:', 'D:'],
+				$this->callPrivate($this->simulateOs($this->finder(), 'Windows'), 'getWindowsDrives')
+			);
+		}
+		finally
+		{
+			putenv($savedSystemDrive === false ? 'SYSTEMDRIVE' : ('SYSTEMDRIVE=' . $savedSystemDrive));
+		}
+	}
+
+	public function testParseWindowsDrives(): void
+	{
+		$finder = $this->finder();
+
+		$this->assertSame(['C:', 'D:'], $this->callPrivate($finder, 'parseWindowsDrives', [['Name', 'C:', 'd:', '', 'C:']]));
+		$this->assertSame(
+			['C:', 'D:', 'E:'], $this->callPrivate($finder, 'parseWindowsDrives', [['', 'Drives: C:\\ D:\\ E:\\']])
+		);
+		// Another language's fsutil label.
+		$this->assertSame(['C:'], $this->callPrivate($finder, 'parseWindowsDrives', [['Laufwerke: C:\\']]));
+		$this->assertSame(
+			[],
+			$this->callPrivate(
+				$finder, 'parseWindowsDrives',
+				[['ERROR:', 'Description = Access denied.', 'Error:  Access is denied.', 'No Instance(s) Available.']]
+			)
 		);
 	}
 

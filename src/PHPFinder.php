@@ -981,9 +981,18 @@ final class PHPFinder
 	}
 
 	/**
-	 * Gets the current list of known Windows drives.
+	 * Gets the current list of known Windows drives, as drive letters with a colon, e.g. ['C:', 'D:'].
 	 *
-	 * This uses the Windows Management Instrumentation (wmic), or fsutil. If both fail, it returns only  %SYSTEMDRIVE%.
+	 * The first of these tools which lists any drive is used:
+	 *
+	 * - `wmic logicaldisk get name`: a "Name" header, then one drive per line. wmic is gone from Windows 11 24H2 and
+	 *   Windows Server 2025.
+	 * - `fsutil fsinfo drives`: one line, "Drives: C:\ D:\" (the label is localised).
+	 * - PowerShell's [IO.DriveInfo]::GetDrives(): one drive per line, "C:\". The slowest, about two seconds.
+	 *
+	 * A tool which runs but lists no drive (wmic prints "No Instance(s) Available." when WMI has none, a tool may fail
+	 * with "Access is denied.") counts as failed, and the next one is tried; only drive letters count, never an error
+	 * message. The system drive (%SYSTEMDRIVE%, or C:) is always in the list, first when no tool listed it.
 	 *
 	 * @return  string[]
 	 * @since   1.0.0
@@ -995,47 +1004,91 @@ final class PHPFinder
 			return $this->windowsDrives;
 		}
 
-		$defaultFallback = [getenv('SYSTEMDRIVE') ?: 'C:'];
+		$drives = [];
 
-		if (!function_exists('exec'))
+		if (function_exists('exec'))
 		{
-			return $this->windowsDrives = $defaultFallback;
-		}
+			$commands = [
+				'wmic'       => 'wmic logicaldisk get name',
+				'fsutil'     => 'fsutil fsinfo drives',
+				'powershell' => 'powershell -NoProfile -NonInteractive -Command '
+				                . '"[IO.DriveInfo]::GetDrives() | ForEach-Object { $_.Name }"',
+			];
 
-		// First, let's try WMIC (deprecated since Windows 11)
-		$result = $this->executableExists('wmic')
-			? @exec('wmic logicaldisk get name', $output)
-			: false;
-
-		if ($result !== false)
-		{
-			return $this->windowsDrives = array_filter(
-				$output,
-				function ($item) {
-					return strpos($item, ':') !== false;
+			foreach ($commands as $executable => $command)
+			{
+				if (!$this->executableExists($executable))
+				{
+					continue;
 				}
-			);
+
+				$output = [];
+
+				// Their errors go to STDERR, which would otherwise end up in the console of a CLI application.
+				@exec($command . ' 2>' . $this->getNullDevice(), $output);
+
+				$drives = $this->parseWindowsDrives($output);
+
+				if (!empty($drives))
+				{
+					break;
+				}
+			}
 		}
 
-		// Use fsutil as a fallback
-		$result = $this->executableExists('fsutil')
-			? @exec('fsutil fsinfo drives')
-			: false;
+		$systemDrive = $this->parseWindowsDrives([(string) @getenv('SYSTEMDRIVE')]) ?: ['C:'];
 
-		if ($result !== false)
+		if (!in_array($systemDrive[0], $drives, true))
 		{
-			$parts = explode(':', $result, 2);
-
-			return $this->windowsDrives = array_map(
-				function ($x) {
-					return rtrim(trim($x), '\\');
-				},
-				array_filter(explode(' ', $parts[1] ?? ''))
-			) ?: $defaultFallback;
+			array_unshift($drives, $systemDrive[0]);
 		}
 
-		// If all else fails, return %SYSTEMDRIVE% or if that's not available just 'C:'.
-		return $this->windowsDrives = $defaultFallback;
+		return $this->windowsDrives = $drives;
+	}
+
+	/**
+	 * Extract the Windows drive letters from the output of a command which lists drives.
+	 *
+	 * A drive is a letter, a colon, then a backslash, whitespace or the end of the line, and is not part of a word: "C:"
+	 * and "C:\" are drives, but neither "Drives:" nor "ERROR:" are.
+	 *
+	 * @param   string[]  $lines  The command's output, one line per element
+	 *
+	 * @return  string[]  The drives, upper case, e.g. ['C:', 'D:'], without duplicates, in the order they were listed
+	 * @since   1.0.2
+	 */
+	private function parseWindowsDrives(array $lines): array
+	{
+		$drives = [];
+
+		foreach ($lines as $line)
+		{
+			if (!preg_match_all('/(?<![A-Za-z0-9])([A-Za-z]):(?=\\\\|\s|$)/', trim($line), $matches))
+			{
+				continue;
+			}
+
+			foreach ($matches[1] as $letter)
+			{
+				$drives[] = strtoupper($letter) . ':';
+			}
+		}
+
+		return array_values(array_unique($drives));
+	}
+
+	/**
+	 * The null device of the shell which exec() runs commands in, for redirecting what a command prints on STDERR.
+	 *
+	 * This depends on the OS PHP really runs on, not on the OS family PHPFinder behaves as (see $osFamily): the tests
+	 * simulate Windows on other systems, where the commands run in /bin/sh.
+	 *
+	 * @return  string
+	 * @since   1.0.2
+	 */
+	private function getNullDevice(): string
+	{
+		return strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'NUL' : '/dev/null';
 	}
 
 	/**

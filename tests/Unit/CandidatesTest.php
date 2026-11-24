@@ -505,22 +505,26 @@ final class CandidatesTest extends TestCase
 	{
 		$php = $this->fakePhp('C:\\wamp\\bin\\php/php5.9.1/php.exe', '5.9.1');
 
-		// A wmic which logs its calls, and lists the fake drive.
+		// A wmic which logs its calls.
 		$this->fakeExecutable(
 			'bin/wmic',
 			"echo \"\$*\" >> '" . $this->root() . "/wmic.log'\n"
-			. "printf 'Name\\n%s\\n' '" . $this->fakeWindowsDrive('C') . "'\n"
+			. "printf 'Name\\nC:\\n'\n"
 		);
 
-		$wamp = function (string $osFamily, bool $softwareSpecific): array {
-			return $this->callPrivate(
-				$this->simulateOs($this->finder(['softwareSpecific' => $softwareSpecific]), $osFamily),
-				'pathsWAMPServer',
-				['5.9']
-			);
+		$wamp = function (string $osFamily, bool $softwareSpecific, ?array $drives = null): array {
+			$finder = $this->simulateOs($this->finder(['softwareSpecific' => $softwareSpecific]), $osFamily);
+
+			if ($drives !== null)
+			{
+				$this->setPrivate($finder, 'windowsDrives', $drives);
+			}
+
+			return $this->callPrivate($finder, 'pathsWAMPServer', ['5.9']);
 		};
 
-		$this->assertSame([$php], $wamp('Windows', true));
+		// The fake drive is a directory, not a drive letter wmic could list: given to the finder directly.
+		$this->assertSame([$php], $wamp('Windows', true, [$this->fakeWindowsDrive('C')]));
 
 		// Used to be guarded by `!softwareSpecific && !isWindows`: on Windows it ran with softwareSpecific off,
 		// and everywhere else it looked the Windows drives up (here, finding the fake one) when it was on.
