@@ -293,7 +293,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useUpdateAlternatives
-			|| in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
+			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
 		)
 		{
 			return [];
@@ -524,7 +524,7 @@ final class PHPFinder
 		if (
 			empty($version)
 			|| !$this->configuration->softwareSpecific
-			|| in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
+			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
 		)
 		{
 			return [];
@@ -562,7 +562,7 @@ final class PHPFinder
 		if (
 			empty($version)
 			|| !$this->configuration->softwareSpecific
-			|| in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
+			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
 		)
 		{
 			return [];

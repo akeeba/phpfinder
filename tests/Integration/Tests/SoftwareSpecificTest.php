@@ -35,26 +35,16 @@ final class SoftwareSpecificTest extends AbstractIntegrationTestCase
 	{
 		$this->assertFixture(self::CPANEL_84, '8.4');
 
-		$this->expectKnownBug(
-			'pathsCPanel() returns [] when PHP_OS_FAMILY IS Linux (the in_array() check lacks its "!"), so the '
-			. 'cPanel EasyApache path is never tried on the only OS cPanel runs on.',
-			function () {
-				$this->assertSame(self::CPANEL_84, $this->bestPath('8.4', self::isolated(['softwareSpecific' => true])));
-			}
-		);
+		// Used to be skipped on Linux: the OS check was inverted.
+		$this->assertSame(self::CPANEL_84, $this->bestPath('8.4', self::isolated(['softwareSpecific' => true])));
 	}
 
 	public function testCloudLinuxPathIsFound(): void
 	{
 		$this->assertFixture(self::CLOUDLINUX_83, '8.3');
 
-		$this->expectKnownBug(
-			'pathsCloudLinux() returns [] when PHP_OS_FAMILY IS Linux (the in_array() check lacks its "!"), so '
-			. 'the CloudLinux alt-php path is never tried on the only OS CloudLinux is.',
-			function () {
-				$this->assertSame(self::CLOUDLINUX_83, $this->bestPath('8.3', self::isolated(['softwareSpecific' => true])));
-			}
-		);
+		// Used to be skipped on Linux: the OS check was inverted.
+		$this->assertSame(self::CLOUDLINUX_83, $this->bestPath('8.3', self::isolated(['softwareSpecific' => true])));
 	}
 
 	public function testSoftwareSpecificPathsAreGated(): void

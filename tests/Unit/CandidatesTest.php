@@ -219,23 +219,31 @@ final class CandidatesTest extends TestCase
 			);
 		}
 
-		$this->expectKnownBug(
-			'pathsCPanel() and pathsCloudLinux() return [] when PHP_OS_FAMILY IS Linux or BSD (the in_array() '
-			. 'check lacks its "!"), so on the only OS where cPanel and CloudLinux exist they never contribute a '
-			. 'path, and they do on macOS and Windows instead.',
-			function () {
-				$finder = new PHPFinder();
+		// Used to return [] on Linux and BSD: the OS check was inverted.
+		$finder = new PHPFinder();
 
-				$this->assertSame(
-					['/opt/cpanel/ea-php84/root/usr/bin/php', '/usr/bin/ea-php84', '/usr/local/bin/ea-php84'],
-					$this->callPrivate($finder, 'pathsCPanel', ['8.4'])
-				);
-				$this->assertSame(
-					['/opt/cloudlinux/alt-php84/root/usr/bin/php', '/usr/bin/alt-php84', '/usr/local/bin/alt-php84'],
-					$this->callPrivate($finder, 'pathsCloudLinux', ['8.4'])
-				);
-			}
+		$this->assertSame(
+			['/opt/cpanel/ea-php84/root/usr/bin/php', '/usr/bin/ea-php84', '/usr/local/bin/ea-php84'],
+			$this->callPrivate($finder, 'pathsCPanel', ['8.4'])
 		);
+		$this->assertSame(
+			['/opt/cloudlinux/alt-php84/root/usr/bin/php', '/usr/bin/alt-php84', '/usr/local/bin/alt-php84'],
+			$this->callPrivate($finder, 'pathsCloudLinux', ['8.4'])
+		);
+	}
+
+	public function testCPanelAndCloudLinuxPathsOnlyOnLinux(): void
+	{
+		if (strtoupper(PHP_OS_FAMILY) === 'LINUX')
+		{
+			$this->markTestSkipped('Not applicable on Linux.');
+		}
+
+		// Used to return the cPanel and CloudLinux paths everywhere BUT Linux and BSD.
+		$finder = new PHPFinder();
+
+		$this->assertSame([], $this->callPrivate($finder, 'pathsCPanel', ['8.4']));
+		$this->assertSame([], $this->callPrivate($finder, 'pathsCloudLinux', ['8.4']));
 	}
 
 	public function testXamppPaths(): void

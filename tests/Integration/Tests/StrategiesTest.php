@@ -103,16 +103,11 @@ final class StrategiesTest extends AbstractIntegrationTestCase
 		$listed = self::dockerCompose(['exec', '-T', 'php', 'update-alternatives', '--list', 'php']);
 		$this->assertSame('/opt/pf-ua/php84', trim($listed['output']), 'The update-alternatives fixture is in place');
 
-		$this->expectKnownBug(
-			'pathsUsingUpdateAlternatives() returns [] when PHP_OS_FAMILY IS Linux or BSD (the in_array() check '
-			. 'lacks its "!"), so it never runs on Debian, the only place update-alternatives exists.',
-			function () {
-				$config = self::isolated(['useUpdateAlternatives' => true]);
+		// Used to be skipped on Linux: the OS check was inverted.
+		$config = self::isolated(['useUpdateAlternatives' => true]);
 
-				$this->assertContains(self::ALTERNATIVES_84, $this->probe('getPossiblePaths', '8.4', $config)['result']);
-				$this->assertSame(self::ALTERNATIVES_84, $this->bestPath('8.4', $config));
-			}
-		);
+		$this->assertContains(self::ALTERNATIVES_84, $this->probe('getPossiblePaths', '8.4', $config)['result']);
+		$this->assertSame(self::ALTERNATIVES_84, $this->bestPath('8.4', $config));
 	}
 
 	public function testUpdateAlternativesIsGated(): void

@@ -55,6 +55,11 @@ final class StrategiesTest extends TestCase
 
 	public function testUpdateAlternativesFindsBinaries(): void
 	{
+		if (strtoupper(PHP_OS_FAMILY) !== 'LINUX')
+		{
+			$this->markTestSkipped('update-alternatives is only used on Linux.');
+		}
+
 		$php = $this->fakePhp('ua/php59', '5.9.1');
 		$fpm = $this->fakePhp('ua/php-fpm59', '5.9.1', 'fpm-fcgi');
 
@@ -65,20 +70,35 @@ final class StrategiesTest extends TestCase
 			. "echo '" . $fpm . "'\n"
 		);
 
-		$this->expectKnownBug(
-			'pathsUsingUpdateAlternatives() returns [] when PHP_OS_FAMILY IS Linux or BSD (the in_array() check '
-			. 'lacks its "!"). update-alternatives only exists on Debian-family Linux, so the strategy never runs '
-			. 'anywhere it could work.',
-			function () use ($php, $fpm) {
-				$finder = $this->finder(['useUpdateAlternatives' => true]);
-				$paths  = $finder->getPossiblePaths('5.9');
+		// Used to return [] on Linux and BSD: the OS check was inverted.
+		$finder = $this->finder(['useUpdateAlternatives' => true]);
+		$paths  = $finder->getPossiblePaths('5.9');
 
-				$this->assertContains($php, $paths);
-				$this->assertNotContains($fpm, $paths, 'Only names for the requested version are kept');
-				$this->assertSame($php, $finder->getBestPath('5.9'));
-			},
-			in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
+		$this->assertContains($php, $paths);
+		$this->assertNotContains($fpm, $paths, 'Only names for the requested version are kept');
+		$this->assertSame($php, $finder->getBestPath('5.9'));
+	}
+
+	public function testUpdateAlternativesOnlyRunsOnLinux(): void
+	{
+		if (strtoupper(PHP_OS_FAMILY) === 'LINUX')
+		{
+			$this->markTestSkipped('Not applicable on Linux.');
+		}
+
+		$php = $this->fakePhp('ua/php59', '5.9.1');
+
+		$this->fakeExecutable(
+			'bin/update-alternatives',
+			"echo \"\$*\" >> '" . $this->root() . "/update-alternatives.log'\n"
+			. "echo '" . $php . "'\n"
 		);
+
+		// Used to run everywhere BUT Linux and BSD.
+		$paths = $this->finder(['useUpdateAlternatives' => true])->getPossiblePaths('5.9');
+
+		$this->assertNotContains($php, $paths);
+		$this->assertFalse(is_file($this->root() . '/update-alternatives.log'), 'update-alternatives was run');
 	}
 
 	public function testUpdateAlternativesIsGated(): void
