@@ -99,6 +99,25 @@ final class StrategiesTest extends TestCase
 		$this->assertFalse(is_file($this->root() . '/update-alternatives.log'), 'update-alternatives was run');
 	}
 
+	public function testUpdateAlternativesMatchesTheWholeFileName(): void
+	{
+		// Simulated, so that it also runs on macOS: update-alternatives itself is a fake anyway.
+		$php   = $this->fakePhp('ua/php59', '5.9.1');
+		$other = $this->fakePhp('ua/x\\php59', '5.9.1');
+
+		$this->fakeExecutable(
+			'bin/update-alternatives',
+			"[ \"\$1\" = '--list' ] && [ \"\$2\" = 'php' ] || exit 2\n"
+			. "printf '%s\\n' '" . $php . "' '" . $other . "'\n"
+		);
+
+		// A backslash is an ordinary file name character on Linux: x\php59 is not named php59. It used to be
+		// accepted, by a second check which turned backslashes into slashes and looked at the last part again.
+		$finder = $this->simulateOs($this->finder(['useUpdateAlternatives' => true]), 'Linux');
+
+		$this->assertSame([$php], $this->callPrivate($finder, 'pathsUsingUpdateAlternatives', ['5.9']));
+	}
+
 	public function testUpdateAlternativesIsGated(): void
 	{
 		$php = $this->fakePhp('ua/php59', '5.9.1');

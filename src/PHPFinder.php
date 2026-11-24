@@ -332,25 +332,10 @@ final class PHPFinder
 			return $ret;
 		}
 
+		// One absolute path per line. Only the file name counts; a backslash is an ordinary character in it.
 		foreach ($output as $line)
 		{
 			$parts    = explode(DIRECTORY_SEPARATOR, $line);
-			$lastPart = end($parts);
-
-			if (in_array($lastPart, $possibleExecutables, true))
-			{
-				$ret[] = $line;
-
-				continue;
-			}
-
-			if (strpos($lastPart, '/') === false && strpos($lastPart, '\\') === false)
-			{
-				continue;
-			}
-
-			$lastPart = str_replace('\\', '/', $lastPart);
-			$parts    = explode(DIRECTORY_SEPARATOR, $lastPart);
 			$lastPart = end($parts);
 
 			if (in_array($lastPart, $possibleExecutables, true))
