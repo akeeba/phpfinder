@@ -35,6 +35,26 @@ final class CandidatesTest extends TestCase
 		$this->tearDownFakeSystem();
 	}
 
+	public function testOsFamilySeam(): void
+	{
+		// The tests simulate other operating systems through the private $osFamily. Outside them it is NULL,
+		// and PHPFinder goes by PHP_OS_FAMILY.
+		$finder = new PHPFinder();
+
+		$this->assertSame(strtoupper(PHP_OS_FAMILY), $this->callPrivate($finder, 'getOsFamily'));
+		$this->assertSame('WINDOWS', $this->callPrivate($this->simulateOs($finder, 'Windows'), 'getOsFamily'));
+	}
+
+	public function testWindowsDrivesAreCachedPerObject(): void
+	{
+		// Each object looks the drives up once; a test can preset them on a fresh object.
+		$finder = new PHPFinder();
+		$this->setPrivate($finder, 'windowsDrives', ['X:', 'Y:']);
+
+		$this->assertSame(['X:', 'Y:'], $this->callPrivate($finder, 'getWindowsDrives'));
+		$this->assertNotSame(['X:', 'Y:'], $this->callPrivate(new PHPFinder(), 'getWindowsDrives'));
+	}
+
 	public function testMajorMinor(): void
 	{
 		$finder = new PHPFinder();

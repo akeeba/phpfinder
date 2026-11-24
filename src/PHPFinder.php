@@ -26,6 +26,25 @@ final class PHPFinder
 	protected $configuration;
 
 	/**
+	 * The OS family to behave as, instead of PHP_OS_FAMILY. NULL (always, outside the tests) uses PHP_OS_FAMILY.
+	 *
+	 * Private, and never set by the library itself: the tests set it through a bound closure, to exercise the
+	 * search strategies of the operating systems they are not running on.
+	 *
+	 * @var    string|null
+	 * @since  1.0.2
+	 */
+	private $osFamily = null;
+
+	/**
+	 * The Windows drives, once getWindowsDrives() has looked them up for this object.
+	 *
+	 * @var    string[]|null
+	 * @since  1.0.2
+	 */
+	private $windowsDrives = null;
+
+	/**
 	 * Returns a new object instance.
 	 *
 	 * @param   Configuration|null  $configuration  The configuration to use.
@@ -212,7 +231,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useWhich
-			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD', 'DARWIN'])
+			|| !in_array($this->getOsFamily(), ['LINUX', 'BSD', 'DARWIN'])
 		)
 		{
 			return [];
@@ -246,7 +265,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useWhich
-			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD', 'DARWIN'])
+			|| !in_array($this->getOsFamily(), ['LINUX', 'BSD', 'DARWIN'])
 		)
 		{
 			return [];
@@ -293,7 +312,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useUpdateAlternatives
-			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD'])
+			|| !in_array($this->getOsFamily(), ['LINUX', 'BSD'])
 		)
 		{
 			return [];
@@ -359,7 +378,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useWhereIs
-			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'BSD', 'DARWIN'])
+			|| !in_array($this->getOsFamily(), ['LINUX', 'BSD', 'DARWIN'])
 		)
 		{
 			return [];
@@ -420,7 +439,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->useWhere
-			|| strtoupper(PHP_OS_FAMILY) !== 'WINDOWS'
+			|| $this->getOsFamily() !== 'WINDOWS'
 		)
 		{
 			return [];
@@ -465,7 +484,7 @@ final class PHPFinder
 		if (
 			!$this->configuration->osSpecific
 			|| !$this->configuration->usePHPCommonWinDirsSearch
-			|| strtoupper(PHP_OS_FAMILY) !== 'WINDOWS'
+			|| $this->getOsFamily() !== 'WINDOWS'
 		)
 		{
 			return [];
@@ -524,7 +543,7 @@ final class PHPFinder
 		if (
 			empty($version)
 			|| !$this->configuration->softwareSpecific
-			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
+			|| $this->getOsFamily() !== 'LINUX'
 		)
 		{
 			return [];
@@ -562,7 +581,7 @@ final class PHPFinder
 		if (
 			empty($version)
 			|| !$this->configuration->softwareSpecific
-			|| strtoupper(PHP_OS_FAMILY) !== 'LINUX'
+			|| $this->getOsFamily() !== 'LINUX'
 		)
 		{
 			return [];
@@ -613,7 +632,7 @@ final class PHPFinder
 
 		$suffix = $major . '.' . $minor;
 
-		switch (strtoupper(PHP_OS_FAMILY))
+		switch ($this->getOsFamily())
 		{
 			case 'LINUX':
 			case 'BSD':
@@ -662,7 +681,7 @@ final class PHPFinder
 			return [];
 		}
 
-		switch (strtoupper(PHP_OS_FAMILY))
+		switch ($this->getOsFamily())
 		{
 			case 'WINDOWS':
 				return array_map(
@@ -705,7 +724,7 @@ final class PHPFinder
 			return [];
 		}
 
-		switch (strtoupper(PHP_OS_FAMILY))
+		switch ($this->getOsFamily())
 		{
 			case 'DARWIN':
 				$rootPath = '/Applications/MAMP/bin/php/';
@@ -761,7 +780,7 @@ final class PHPFinder
 	{
 		if (
 			!$this->configuration->softwareSpecific
-			|| !in_array(strtoupper(PHP_OS_FAMILY), ['LINUX', 'DARWIN'])
+			|| !in_array($this->getOsFamily(), ['LINUX', 'DARWIN'])
 		)
 		{
 			return [];
@@ -802,7 +821,7 @@ final class PHPFinder
 			}
 		}
 
-		$defaultPrefixes = strtoupper(PHP_OS_FAMILY) === 'DARWIN'
+		$defaultPrefixes = $this->getOsFamily() === 'DARWIN'
 			? ['/opt/homebrew', '/usr/local']
 			: ['/home/linuxbrew/.linuxbrew'];
 
@@ -834,7 +853,7 @@ final class PHPFinder
 	 */
 	private function pathsWAMPServer(?string $version): array
 	{
-		if (!$this->configuration->softwareSpecific && strtoupper(PHP_OS_FAMILY) != 'WINDOWS')
+		if (!$this->configuration->softwareSpecific && $this->getOsFamily() != 'WINDOWS')
 		{
 			return [];
 		}
@@ -978,18 +997,16 @@ final class PHPFinder
 	 */
 	private function getWindowsDrives(): array
 	{
-		static $drives = null;
-
-		if ($drives !== null)
+		if ($this->windowsDrives !== null)
 		{
-			return $drives;
+			return $this->windowsDrives;
 		}
 
 		$defaultFallback = [getenv('SYSTEMDRIVE') ?: 'C:'];
 
 		if (!function_exists('exec'))
 		{
-			return $drives = $defaultFallback;
+			return $this->windowsDrives = $defaultFallback;
 		}
 
 		// First, let's try WMIC (deprecated since Windows 11)
@@ -999,7 +1016,7 @@ final class PHPFinder
 
 		if ($result !== false)
 		{
-			return $drives = array_filter(
+			return $this->windowsDrives = array_filter(
 				$output,
 				function ($item) {
 					return strpos($item, ':') !== false;
@@ -1016,7 +1033,7 @@ final class PHPFinder
 		{
 			$parts = explode(':', $result, 2);
 
-			return $drives = array_map(
+			return $this->windowsDrives = array_map(
 				function ($x) {
 					return rtrim(trim($x), '\\');
 				},
@@ -1025,7 +1042,7 @@ final class PHPFinder
 		}
 
 		// If all else fails, return %SYSTEMDRIVE% or if that's not available just 'C:'.
-		return $drives = $defaultFallback;
+		return $this->windowsDrives = $defaultFallback;
 	}
 
 	/**
@@ -1047,7 +1064,7 @@ final class PHPFinder
 		}
 
 		$ret       = [];
-		$isWindows = strtoupper(PHP_OS_FAMILY) === 'WINDOWS';
+		$isWindows = $this->getOsFamily() === 'WINDOWS';
 
 		/** @var \DirectoryIterator $file */
 		foreach (new \DirectoryIterator($path) as $file)
@@ -1117,7 +1134,7 @@ final class PHPFinder
 
 		$result = @file_exists($path)
 		          && $this->isExecutable($path)
-		          && @exec($this->quoteExecutablePath($path, PHP_OS_FAMILY) . ' -v', $output);
+		          && @exec($this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v', $output);
 
 		if (!$result)
 		{
@@ -1242,6 +1259,17 @@ final class PHPFinder
 		return false;
 	}
 
+	/**
+	 * The OS family PHPFinder runs on, in upper case: WINDOWS, BSD, DARWIN, SOLARIS, LINUX or UNKNOWN.
+	 *
+	 * @return  string
+	 * @since   1.0.2
+	 */
+	private function getOsFamily(): string
+	{
+		return strtoupper($this->osFamily ?? PHP_OS_FAMILY);
+	}
+
 	private function isExecutable(string $fullPath): bool
 	{
 		if (@is_executable($fullPath))
@@ -1250,7 +1278,7 @@ final class PHPFinder
 		}
 
 		if (
-			(strtoupper(PHP_OS_FAMILY) === 'WINDOWS')
+			($this->getOsFamily() === 'WINDOWS')
 			&& (
 				@is_executable($fullPath . '.exe')
 				|| @is_executable($fullPath . '.com')

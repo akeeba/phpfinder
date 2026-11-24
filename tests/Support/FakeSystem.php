@@ -174,6 +174,64 @@ trait FakeSystem
 	}
 
 	/**
+	 * Set one of an object's private properties. Closure binding, as in callPrivate().
+	 */
+	protected function setPrivate($object, string $property, $value): void
+	{
+		$setter = \Closure::bind(
+			function ($property, $value) {
+				$this->{$property} = $value;
+			},
+			$object,
+			get_class($object)
+		);
+
+		$setter($property, $value);
+	}
+
+	/**
+	 * Make a PHPFinder behave as if it ran on another OS family (WINDOWS, LINUX, BSD, DARWIN, …), through its
+	 * private $osFamily, which takes the place of PHP_OS_FAMILY. Everything else is still the host's: the
+	 * file system, DIRECTORY_SEPARATOR, and the shell which runs the fake executables.
+	 */
+	protected function simulateOs(PHPFinder $finder, string $osFamily): PHPFinder
+	{
+		$this->setPrivate($finder, 'osFamily', $osFamily);
+
+		return $finder;
+	}
+
+	/**
+	 * A fake Windows drive: a directory under the fake root, named like a drive letter, e.g. ROOT/C:.
+	 *
+	 * The library builds Windows paths by appending backslash-separated names to the drive, e.g.
+	 * `$drive . '\\wamp\\bin\\php'`. A backslash is an ordinary file name character on macOS and Linux, so
+	 * that path is ONE real directory, literally named `C:\wamp\bin\php`, inside ROOT. fakeWindowsDir() creates
+	 * such directories, so that the library's real is_dir() and DirectoryIterator calls find them.
+	 */
+	protected function fakeWindowsDrive(string $letter = 'C'): string
+	{
+		return $this->fakeRoot . '/' . $letter . ':';
+	}
+
+	/**
+	 * Create a directory for a Windows path under a fake drive, e.g. fakeWindowsDir('C', 'wamp\\bin\\php').
+	 *
+	 * @return  string  The path the library builds for it: the drive, a backslash, and the given path
+	 */
+	protected function fakeWindowsDir(string $letter, string $windowsPath): string
+	{
+		$path = $this->fakeWindowsDrive($letter) . '\\' . $windowsPath;
+
+		if (!is_dir($path))
+		{
+			mkdir($path, 0700, true);
+		}
+
+		return $path;
+	}
+
+	/**
 	 * Run a callable, collecting every PHP diagnostic (warning, notice, deprecation) raised while it runs,
 	 * except those silenced with `@`.
 	 *
