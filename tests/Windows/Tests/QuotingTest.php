@@ -39,14 +39,9 @@ final class QuotingTest extends AbstractWindowsTestCase
 
 	public function testPathWithTheNameOfADefinedVariable(): void
 	{
-		// C:\pf\odd %OS%\php.exe.
-		$this->expectKnownBug(
-			'analyzePHPVersion() runs the binary through cmd.exe, which expands %OS% even between double quotes: it '
-			. 'tries to run C:\\pf\\odd Windows_NT\\php.exe instead (known-issues row 27).',
-			function () {
-				$this->assertRuns(self::ODD_DEFINED_VAR_85, '8.5.');
-			}
-		);
+		// C:\pf\odd %OS%\php.exe. Used to run through cmd.exe, which expands %OS% even between double quotes, so it
+		// tried to run C:\pf\odd Windows_NT\php.exe instead.
+		$this->assertRuns(self::ODD_DEFINED_VAR_85, '8.5.');
 	}
 
 	private function assertRuns(string $binary, string $versionPrefix): void

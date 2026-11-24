@@ -1190,18 +1190,9 @@ final class PHPFinder
 			'cli'     => false,
 		];
 
-		if (!function_exists('exec'))
-		{
-			return $ret;
-		}
+		$output = @file_exists($path) && $this->isExecutable($path) ? $this->runVersionCommand($path) : null;
 
-		$result = @file_exists($path)
-		          && $this->isExecutable($path)
-		          && @exec(
-				          $this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v 2>' . $this->getNullDevice(), $output
-			          );
-
-		if (!$result)
+		if ($output === null)
 		{
 			return $ret;
 		}
@@ -1231,16 +1222,68 @@ final class PHPFinder
 	}
 
 	/**
+	 * Run `<binary> -v` and return the lines of its output, without their trailing whitespace, as exec() returns them.
+	 *
+	 * On Windows, proc_open() runs the binary directly (bypass_shell), not through cmd.exe: cmd.exe expands %NAME% in
+	 * a command line even between double quotes when NAME is a defined environment variable, so C:\odd %OS%\php.exe
+	 * would run C:\odd Windows_NT\php.exe instead, and that cannot be escaped on a cmd.exe command line. This depends
+	 * on the OS PHP really runs on, like getNullDevice(). Where proc_open() is disabled, exec() runs it through the
+	 * shell, with that limitation on Windows.
+	 *
+	 * @param   string  $path  The path to the binary.
+	 *
+	 * @return  string[]|null  NULL when it could not be run.
+	 * @since   1.0.2
+	 */
+	private function runVersionCommand(string $path): ?array
+	{
+		$command = $this->quoteExecutablePath($path, $this->getOsFamily()) . ' -v';
+
+		if (strtoupper(PHP_OS_FAMILY) === 'WINDOWS' && function_exists('proc_open'))
+		{
+			$pipes   = [];
+			$process = @proc_open(
+				$command,
+				[0 => ['file', 'NUL', 'r'], 1 => ['pipe', 'w'], 2 => ['file', 'NUL', 'w']],
+				$pipes,
+				null,
+				null,
+				['bypass_shell' => true]
+			);
+
+			if (is_resource($process))
+			{
+				$stdout = (string) @stream_get_contents($pipes[1]);
+
+				@fclose($pipes[1]);
+				@proc_close($process);
+
+				return array_map('rtrim', preg_split('/\r?\n/', rtrim($stdout)));
+			}
+		}
+
+		if (!function_exists('exec'))
+		{
+			return null;
+		}
+
+		$output = [];
+
+		// What a binary which cannot run prints on STDERR would end up in the console of a CLI application.
+		return @exec($command . ' 2>' . $this->getNullDevice(), $output) === false ? null : $output;
+	}
+
+	/**
 	 * Quote the path to an executable, so that it is run as one word whatever characters it contains (spaces in
 	 * C:\Program Files\… or /Applications/MAMP PRO/…, quotes, $, &, …).
 	 *
-	 * On Windows, PHP runs commands through `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"`
-	 * (PHP 8), both of which strip the outer pair of quotes and run the rest verbatim, so the executable only needs
-	 * plain double quotes. escapeshellarg() is not used there because it turns the %, ! and " characters into
-	 * spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned into a space,
-	 * as escapeshellarg() does, so that it can never end the quoted string early. Limitation: cmd.exe still
-	 * expands %NAME% inside double quotes when NAME is a defined environment variable, and that cannot be escaped
-	 * on a cmd.exe command line.
+	 * On Windows the binary is normally run without cmd.exe (see runVersionCommand()), and the command line is split
+	 * by the C runtime's rules, for which plain double quotes are enough. Through exec(), PHP runs commands with
+	 * `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"` (PHP 8), both of which strip the outer pair of
+	 * quotes and run the rest verbatim, so plain double quotes work there too, save for a %NAME% of a defined
+	 * environment variable, which cmd.exe expands. escapeshellarg() is not used because it turns the %, ! and "
+	 * characters into spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned
+	 * into a space, as escapeshellarg() does, so that it can never end the quoted string early.
 	 *
 	 * Everywhere else, escapeshellarg() single-quotes the path for /bin/sh.
 	 *
