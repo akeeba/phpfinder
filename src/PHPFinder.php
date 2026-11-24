@@ -1320,8 +1320,11 @@ final class PHPFinder
 	 * its own process (PowerShell fails with "Loading managed Windows PowerShell failed with error 80070005", whoami
 	 * with "Access is denied"), while one which cmd.exe starts can.
 	 *
-	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe, with those limitations. This depends
-	 * on the OS PHP really runs on, like getNullDevice().
+	 * Only where proc_open() is disabled does exec() run it, through PHP's cmd.exe. Then a program whose path has a % in
+	 * it is not run at all, and a cmd.exe in the current directory runs instead of Windows' own (nothing PHPFinder can
+	 * do about that). Spaces, &, (, ), ^ and ! are fine between double quotes (unless the registry turns cmd.exe's
+	 * delayed expansion on, which makes !NAME! expand like %NAME%). This depends on the OS PHP really runs on, like
+	 * getNullDevice().
 	 *
 	 * @param   string    $executable  The full path to the program.
 	 * @param   string    $arguments   Its arguments, quoted for its command line.
@@ -1339,6 +1342,14 @@ final class PHPFinder
 		$isWindows = strtoupper(PHP_OS_FAMILY) === 'WINDOWS';
 		$procOpen  = $isWindows && function_exists('proc_open');
 		$command   = $this->quoteExecutablePath($executable, PHP_OS_FAMILY) . ($arguments === '' ? '' : (' ' . $arguments));
+
+		// cmd.exe would expand a %NAME% in the path, even between double quotes, when NAME is a defined environment
+		// variable, and run another program, if there is one at the path that makes. Whether a name is defined is
+		// not known in advance (cmd.exe inherits the environment, which putenv() changes), so no such path runs.
+		if ($isWindows && ($throughCmd || !$procOpen) && strpos($executable, '%') !== false)
+		{
+			return null;
+		}
 
 		if ($procOpen)
 		{
@@ -1403,7 +1414,7 @@ final class PHPFinder
 	 * by the C runtime's rules, for which plain double quotes are enough. Through exec(), PHP runs commands with
 	 * `cmd.exe /c "<command>"` (PHP 7) or `cmd.exe /s /c "<command>"` (PHP 8), both of which strip the outer pair of
 	 * quotes and run the rest verbatim, so plain double quotes work there too, save for a %NAME% of a defined
-	 * environment variable, which cmd.exe expands.
+	 * environment variable, which cmd.exe expands (runProgram() never runs a path with a % through exec()).
 	 * escapeshellarg() is not used because it turns the %, ! and "
 	 * characters into spaces, and the first two are legal in a Windows path. A double quote is not, so it is turned
 	 * into a space, as escapeshellarg() does, so that it can never end the quoted string early.

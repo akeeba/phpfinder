@@ -84,6 +84,8 @@ restores the VM's clean snapshot, so nothing a run did survives it, and nothing 
 | `C:\pf\path-cgi\php.exe` | 8.3 **php-cgi.exe** | `validateCli` (it reports `(cgi-fcgi)`) |
 | `C:\pf\odd %PF_UNDEFINED% & (x) !bang ^caret\php.exe` | 8.5 | running a path with the characters `cmd.exe` treats specially |
 | `C:\pf\odd %OS%\php.exe` | 8.5 | the same, with the name of a defined environment variable |
+| `C:\pf\odd & (x) !bang ^caret\php.exe` | 8.5 | the same characters without a `%`, through `exec()` (`ExecFallbackTest`) |
+| `C:\pf\odd Windows_NT\php.exe` | **8.3** | what `C:\pf\odd %OS%\php.exe` becomes when `cmd.exe` expands `%OS%`: another binary |
 | `C:\pf\fake\broken\php.exe` | none | a `php.exe` which is not a program |
 
 Plesk's layout on Windows: its documentation ("Running PHP Scripts from the Command Line", the Onyx and Obsidian
@@ -118,8 +120,14 @@ C# compiler (`Add-Type -OutputType ConsoleApplication`) and copies under each to
 | `C:\pf\fakewin\wmic-error` | a `wmic` which prints an error on STDOUT, an `fsutil` which lists the drives | `DrivesTest` |
 | `C:\pf\fakewin\fsutil-error` | no `wmic`, an `fsutil` which prints an error, a PowerShell which lists the drives | `DrivesTest` |
 | `C:\pf\fakewin\all-fail`, `C:\pf\fakewin\empty` | every tool failing; no tool at all | `DrivesTest` |
-| `C:\pf\planted` | `where.exe`, `wmic.exe`, `fsutil.exe`, `powershell.exe`, printing nothing: a working directory | `WorkingDirectoryTest` |
+| `C:\pf\planted` | `where.exe`, `wmic.exe`, `fsutil.exe`, `powershell.exe`, printing nothing: a working directory | `WorkingDirectoryTest`, `ExecFallbackTest` |
 | `C:\pf\planted-cmd` | `cmd.exe`, printing nothing: a working directory | `WorkingDirectoryTest` |
+
+### `proc_open()` disabled
+
+Some hosts disable `proc_open()`; PHPFinder then falls back to `exec()`, which runs everything through `cmd.exe`.
+`ExecFallbackTest` asks the relay to run the probe with `-d disable_functions=proc_open` (`"noProcOpen"`), on every CLI
+runner; IIS's `php.ini` cannot change per request, so it skips there.
 
 ## A second drive
 
@@ -171,4 +179,5 @@ Tests for bugs in `src/` which are not fixed yet assert the **correct** behaviou
 
 - A real Plesk for Windows: its layout comes from its documentation and support material (see the fixture table).
 - Windows 11 and Windows Server 2025 themselves: their missing `wmic` is the real one renamed.
+- `cmd.exe` with delayed expansion turned on in the registry (`!NAME!` would expand like `%NAME%` through `exec()`).
 - A server whose system drive is not `C:`.

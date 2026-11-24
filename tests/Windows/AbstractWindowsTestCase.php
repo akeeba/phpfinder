@@ -59,6 +59,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 	protected const ODD_85               = self::ODD_DIR . '\\php.exe';
 	protected const ODD_DEFINED_VAR_DIR  = 'C:\\pf\\odd %OS%';
 	protected const ODD_DEFINED_VAR_85   = self::ODD_DEFINED_VAR_DIR . '\\php.exe';
+	protected const ODD_NO_PERCENT_85    = 'C:\\pf\\odd & (x) !bang ^caret\\php.exe';
+	protected const ODD_EXPANDED_83      = 'C:\\pf\\odd Windows_NT\\php.exe';
 	protected const BROKEN_EXE           = 'C:\\pf\\fake\\broken\\php.exe';
 
 	// Windows directories with stand-ins for misbehaving tools (see guest/provision.ps1), for $windowsDirectory.
@@ -133,10 +135,11 @@ abstract class AbstractWindowsTestCase extends TestCase
 	 * @param   array        $env      More environment variables to set, e.g. ['plesk_dir' => '…']
 	 * @param   string|null  $arg      The binary to analyse (analyze only)
 	 * @param   string|null  $cwd      The working directory; NULL keeps the relay's empty C:\pf\work (IIS: the site's)
-	 * @param   array        $options  windowsDirectory: PHPFinder's private $windowsDirectory
+	 * @param   array        $options  windowsDirectory: PHPFinder's private $windowsDirectory; noProcOpen: run with
+	 *                                 proc_open() disabled (not under IIS)
 	 *
-	 * @return  array  The probe's response (result, diagnostics, runner, runnerVersion, sapi, phpBinary, ran), plus
-	 *                 the probe's STDERR as `stderr`
+	 * @return  array  The probe's response (result, diagnostics, runner, runnerVersion, sapi, phpBinary, ran,
+	 *                 procOpen), plus the probe's STDERR as `stderr`
 	 */
 	protected function probe(
 		string $call, ?string $version, array $config = [], ?string $path = null, array $env = [], ?string $arg = null,
@@ -154,7 +157,16 @@ abstract class AbstractWindowsTestCase extends TestCase
 			'windowsDirectory' => $options['windowsDirectory'] ?? null,
 		]));
 
-		$answer   = self::relayRequest(['runner' => self::runnerName(), 'request' => $request]);
+		$noProcOpen = !empty($options['noProcOpen']);
+
+		if ($noProcOpen && self::isIis())
+		{
+			$this->markTestSkipped('IIS runs PHP with its own php.ini: proc_open() cannot be disabled per request.');
+		}
+
+		$answer = self::relayRequest(
+			['runner' => self::runnerName(), 'request' => $request, 'noProcOpen' => $noProcOpen]
+		);
 		$response = json_decode($answer['stdout'], true);
 
 		$this->assertSame(
@@ -164,6 +176,8 @@ abstract class AbstractWindowsTestCase extends TestCase
 		$this->assertIsArray($response, "probe.php did not answer with JSON:\n" . $answer['stdout'] . "\n" . $answer['stderr']);
 
 		$response['stderr'] = $answer['stderr'];
+
+		$this->assertSame(!$noProcOpen, $response['procOpen'], 'proc_open() availability in the probe');
 
 		return $response;
 	}

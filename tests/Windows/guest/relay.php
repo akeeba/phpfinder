@@ -14,7 +14,10 @@
  *
  * The host-side suite (AbstractWindowsTestCase) keeps that SSH session open and writes one JSON request per line:
  *
- *   {"runner": "8.5" | "iis", "request": "<base64 of probe.php's JSON request>"}
+ *   {"runner": "8.5" | "iis", "request": "<base64 of probe.php's JSON request>", "noProcOpen": false}
+ *
+ * With "noProcOpen", the probe runs with proc_open() disabled (-d disable_functions=proc_open), so that the library
+ * falls back to exec(); not for "iis", whose php.ini the relay cannot change per request.
  *
  * {"hidden": {"wmic": true, "fsutil": false}} hides (renames) or restores Windows' own WMIC.exe and fsutil.exe, for
  * the tests of a Windows without them (provision.ps1 made them renamable; the VM's snapshot restores them anyway).
@@ -77,7 +80,11 @@ while (($line = fgets($stdin)) !== false)
 	{
 		$errFile = tempnam(sys_get_temp_dir(), 'pfe');
 		$process = proc_open(
-			['C:\\pf\\run\\' . $runner . '\\php.exe', '-n', 'C:\\pf\\probe.php', $request],
+			array_merge(
+				['C:\\pf\\run\\' . $runner . '\\php.exe', '-n'],
+				empty($message['noProcOpen']) ? [] : ['-d', 'disable_functions=proc_open'],
+				['C:\\pf\\probe.php', $request]
+			),
 			[0 => ['file', 'NUL', 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errFile, 'w']],
 			$pipes,
 			'C:\\pf\\work'

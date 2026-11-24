@@ -130,6 +130,9 @@ New-Fixture '8.3' "$pf\path-cgi" 'php.exe' 'php-cgi.exe' 'cgi-fcgi'
 # Directory names with the characters cmd.exe treats specially. %PF_UNDEFINED% names no environment variable; %OS% does.
 New-Fixture '8.5' "$pf\odd %PF_UNDEFINED% & (x) !bang ^caret"
 New-Fixture '8.5' "$pf\odd %OS%"
+# The same characters without a %, and what C:\pf\odd %OS%\php.exe becomes when cmd.exe expands %OS% (another version).
+New-Fixture '8.5' "$pf\odd & (x) !bang ^caret"
+New-Fixture '8.3' "$pf\odd Windows_NT"
 
 # A php.exe which is not a program at all.
 New-Item -ItemType Directory -Force "$pf\fake\broken" | Out-Null

@@ -20,7 +20,7 @@
  *            "env": {"plesk_dir": "…"}, "arg": "C:\\…\\php.exe" (analyze only), "cwd": "C:\\…" | null,
  *            "windowsDirectory": "C:\\pf\\fakewin\\…" | null}
  * Response: {"result": …, "diagnostics": ["…"], "runner": "8.5", "runnerVersion": "8.5.13", "sapi": "cli",
- *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe", "ran": ["where", …]}
+ *            "phpBinary": "C:\\pf\\run\\8.5\\php.exe", "ran": ["where", …], "procOpen": true}
  *
  * "windowsDirectory" sets PHPFinder's private $windowsDirectory, where it runs Windows' own tools from (when the
  * library has it: not an older one given to run.sh with --src). "ran" lists the stand-in tools (provision.ps1's fake
@@ -236,5 +236,6 @@ echo json_encode(
 			},
 			glob($markerDir . '\\*.ran') ?: []
 		),
+		'procOpen'      => function_exists('proc_open'),
 	]
 );
