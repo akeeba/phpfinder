@@ -1,0 +1,20 @@
+# What tests/Windows/guest/provision.ps1 downloads INSIDE the Windows guest on every run (the VM is restored to a clean
+# snapshot on every start, so nothing can be cached there), pinned by the SHA-256 of the bytes actually downloaded.
+#
+# One file per line: <file name> <sha256> <url> [<fallback url>…]. The guest checks every hash with Get-FileHash and
+# refuses to use a file which does not match. Bump a pin only with a hash computed from what was downloaded, never typed
+# or copied from a web page. Current PHP releases move to archives/ when superseded: the archives/ URL is the fallback.
+#
+# PHP, non-thread-safe, x64: one runner (and fixture source) per version. The guest's own PHP 8.4 (C:\php, from the
+# VM's build) is the eighth. 7.2 is the oldest PHP composer.json allows; 8.0 is not covered by the Docker suite.
+php-7.2.34-nts-Win32-VC15-x64.zip 3c673eab656e26fd6bc3ad27fe71169ad888b04e21d63d3c6b3151d5ed216563 https://downloads.php.net/~windows/releases/archives/php-7.2.34-nts-Win32-VC15-x64.zip
+php-8.0.30-nts-Win32-vs16-x64.zip dfb70498ffa2c617f2f655a155564697e3c9cca41709938fd1a5997d1d5b0785 https://downloads.php.net/~windows/releases/archives/php-8.0.30-nts-Win32-vs16-x64.zip
+php-8.1.34-nts-Win32-vs16-x64.zip 9cfe246cb144076c16f5913a3ef88a474c3dd7e60f0f0c8bb95faf68674016cc https://downloads.php.net/~windows/releases/php-8.1.34-nts-Win32-vs16-x64.zip https://downloads.php.net/~windows/releases/archives/php-8.1.34-nts-Win32-vs16-x64.zip
+php-8.2.36-nts-Win32-vs16-x64.zip 0b541b7e9db3c55b9324f3f1f30f084a340657d1b57ca4f7a3acaca6b2e8a799 https://downloads.php.net/~windows/releases/php-8.2.36-nts-Win32-vs16-x64.zip https://downloads.php.net/~windows/releases/archives/php-8.2.36-nts-Win32-vs16-x64.zip
+php-8.3.37-nts-Win32-vs16-x64.zip 38808a798485e1c0938dfcce7e942131415fc6c7834f83a5a85a4c4edb5539d6 https://downloads.php.net/~windows/releases/php-8.3.37-nts-Win32-vs16-x64.zip https://downloads.php.net/~windows/releases/archives/php-8.3.37-nts-Win32-vs16-x64.zip
+php-8.5.13-nts-Win32-vs17-x64.zip 4ae6c72bc0ca4f6b8f3e9b107874bae0135699f3aabe6c26a1f6103d040eea97 https://downloads.php.net/~windows/releases/php-8.5.13-nts-Win32-vs17-x64.zip https://downloads.php.net/~windows/releases/archives/php-8.5.13-nts-Win32-vs17-x64.zip
+php-8.6.0-nts-Win32-vs18-x64.zip d4783fffe1f4ab072600daff1622a7a2df936957a787a338c59e3dbd4d846d98 https://downloads.php.net/~windows/releases/php-8.6.0-nts-Win32-vs18-x64.zip https://downloads.php.net/~windows/releases/archives/php-8.6.0-nts-Win32-vs18-x64.zip
+# Visual C++ v14 redistributable from Visual Studio 2026 (14.51), x64. PHP 8.6's vs18 build refuses the VM's 14.44
+# runtime ("VCRUNTIME140.dll 14.44 is not compatible with this PHP build linked with 14.51"). A versioned URL:
+# aka.ms/vc14/vc_redist.x64.exe always serves the latest build, which would break the pin.
+vc_redist.x64.exe 9c02c9ed120f671b900e6b9471d890e3b2414117a7e53f4ae2e855466fa2b7c9 https://download.visualstudio.microsoft.com/download/pr/78d061c5-9ef3-42ab-98ed-3309d1095dc4/9C02C9ED120F671B900E6B9471D890E3B2414117A7E53F4AE2E855466FA2B7C9/VC_redist.x64.exe

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Windows suite: PHPUnit on the host, PHPFinder running on a real Windows (the shared IIS test VM of
+	../buildfiles/vm/iis) under several real PHP CLIs and IIS. Opt-in, not part of `composer test`. It needs a
+	provisioned VM, so run it through
+
+		tests/Windows/run.sh, giving it the KVM host (or: composer test:windows)
+
+	See tests/Windows/README.md. Limited to what PHPUnit 8.5 knows, for the same reason as phpunit.xml.
+-->
+<phpunit bootstrap="tests/Windows/bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         failOnWarning="true"
+         failOnRisky="true"
+>
+	<php>
+		<ini name="error_reporting" value="-1"/>
+	</php>
+	<testsuites>
+		<testsuite name="windows">
+			<directory>tests/Windows/Tests</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
