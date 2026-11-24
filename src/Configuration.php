@@ -274,6 +274,9 @@ final class Configuration
 	 *
 	 * Allows you to set configuration parameters using virtual setPropertyName methods which return $this for chaining.
 	 *
+	 * The value is required, as documented in the class' method tags: calling a setter without it throws an
+	 * ArgumentCountError, as it would for a declared method.
+	 *
 	 * @param   string  $name       The method name
 	 * @param   array   $arguments  Its parameters
 	 *
@@ -289,10 +292,25 @@ final class Configuration
 			);
 		}
 
-		$name = substr($name, 3);
-		$name = strtolower(substr($name, 0, 1)) . substr($name, 1);
+		$property = substr($name, 3);
+		$property = strtolower(substr($property, 0, 1)) . substr($property, 1);
 
-		$this->{$name} = boolval($arguments[0]);
+		if (!property_exists($this, $property))
+		{
+			throw new \InvalidArgumentException(
+				sprintf('Undefined property: %s::$%s', get_class($this), $property)
+			);
+		}
+
+		// Not isset(): an explicit NULL is a value (FALSE), not a missing argument.
+		if (!array_key_exists(0, $arguments))
+		{
+			throw new \ArgumentCountError(
+				sprintf('Too few arguments to function %s::%s(), 0 passed and exactly 1 expected', get_class($this), $name)
+			);
+		}
+
+		$this->{$property} = boolval($arguments[0]);
 
 		return $this;
 	}

@@ -122,6 +122,49 @@ final class ConfigurationTest extends TestCase
 		}
 	}
 
+	public function testFluentSetterWithoutAnArgumentThrows(): void
+	{
+		// The setters are documented as setX(bool $value): the value is required, so leaving it out is an
+		// ArgumentCountError, as it would be for a declared method. Used to raise "Undefined array key 0" (an
+		// "Undefined offset: 0" notice on PHP 7) and set the property to FALSE.
+		foreach (self::DEFAULTS as $property => $default)
+		{
+			$config      = new Configuration();
+			$setter      = 'set' . ucfirst($property);
+			$thrown      = null;
+			$diagnostics = [];
+
+			set_error_handler(
+				function ($errno, $errstr) use (&$diagnostics) {
+					$diagnostics[] = $errstr;
+
+					return true;
+				}
+			);
+
+			try
+			{
+				$config->{$setter}();
+			}
+			catch (\ArgumentCountError $e)
+			{
+				$thrown = $e;
+			}
+			finally
+			{
+				restore_error_handler();
+			}
+
+			$this->assertSame([], $diagnostics, "$setter() raised PHP diagnostics");
+			$this->assertInstanceOf(\ArgumentCountError::class, $thrown, "$setter() without an argument");
+			$this->assertSame(
+				sprintf('Too few arguments to function %s::%s(), 0 passed and exactly 1 expected', Configuration::class, $setter),
+				$thrown->getMessage()
+			);
+			$this->assertSame($default, $config->{$property}, "$setter() without an argument changed $property");
+		}
+	}
+
 	public function testFluentSetterForAnUnknownPropertyThrows(): void
 	{
 		$this->expectException(\InvalidArgumentException::class);
