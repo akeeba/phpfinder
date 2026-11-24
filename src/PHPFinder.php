@@ -713,8 +713,7 @@ final class PHPFinder
 		switch ($this->getOsFamily())
 		{
 			case 'DARWIN':
-				$rootPath = '/Applications/MAMP/bin/php/';
-				break;
+				return $this->getMAMPMacPaths('/Applications/MAMP/bin/php');
 
 			case 'WINDOWS':
 				// Each PHP version in its own directory: <drive>\MAMP\bin\php\php8.3.1\php.exe
@@ -733,13 +732,22 @@ final class PHPFinder
 			default:
 				return [];
 		}
+	}
 
-		if (!@is_dir($rootPath))
-		{
-			return [];
-		}
-
-		return $this->recursivePathScanner($rootPath, 0, 1, ['php']);
+	/**
+	 * Get the PHP CLI binaries of a MAMP / MAMP Pro installation on macOS.
+	 *
+	 * MAMP keeps each PHP version in its own directory, with the binary two levels down, e.g.
+	 * /Applications/MAMP/bin/php/php8.3.1/bin/php.
+	 *
+	 * @param   string  $phpRoot  MAMP's PHP directory, e.g. /Applications/MAMP/bin/php
+	 *
+	 * @return  string[]
+	 * @since   1.0.2
+	 */
+	private function getMAMPMacPaths(string $phpRoot): array
+	{
+		return @glob(rtrim($phpRoot, '/') . '/php*/bin/php') ?: [];
 	}
 
 	/**

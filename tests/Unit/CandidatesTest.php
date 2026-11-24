@@ -407,6 +407,41 @@ final class CandidatesTest extends TestCase
 		$this->assertSame([], $diagnostics);
 	}
 
+	public function testMampPathsOnMacOs(): void
+	{
+		// MAMP for macOS keeps each PHP version in its own directory: /Applications/MAMP/bin/php/php8.3.1/bin/php
+		$expected = [
+			$this->fakePhp('mamp/php5.8.0/bin/php', '5.8.0'),
+			$this->fakePhp('mamp/php5.9.1/bin/php', '5.9.1'),
+		];
+
+		// Not where MAMP keeps its binaries.
+		$this->fakePhp('mamp/php5.9.1/php', '5.9.1');
+		$this->fakePhp('mamp/other/bin/php', '5.9.1');
+		$this->fakePhp('mamp/php5.9.1/bin/php-cgi', '5.9.1', 'cgi-fcgi');
+
+		// Used to scan /Applications/MAMP/bin/php/ only one level deep, which never reaches <version>/bin/php.
+		$finder = $this->simulateOs($this->finder(['softwareSpecific' => true]), 'Darwin');
+		$paths  = $this->callPrivate($finder, 'getMAMPMacPaths', [$this->root() . '/mamp']);
+
+		sort($paths);
+
+		$this->assertSame($expected, $paths);
+		$this->assertSame($expected, $this->callPrivate($finder, 'getMAMPMacPaths', [$this->root() . '/mamp/']));
+		$this->assertSame([], $this->callPrivate($finder, 'getMAMPMacPaths', [$this->root() . '/missing']));
+
+		// The real location, which the tests do not touch, is only searched with softwareSpecific on.
+		if (!is_dir('/Applications/MAMP'))
+		{
+			$this->assertSame([], $this->callPrivate($finder, 'pathsMAMP', ['5.9']));
+		}
+
+		$this->assertSame(
+			[],
+			$this->callPrivate($this->simulateOs($this->finder(['softwareSpecific' => false]), 'Darwin'), 'pathsMAMP', ['5.9'])
+		);
+	}
+
 	public function testMampPathsOnWindows(): void
 	{
 		// MAMP for Windows keeps each PHP version in its own directory: <drive>\MAMP\bin\php\php8.3.1\php.exe

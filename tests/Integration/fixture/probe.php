@@ -14,7 +14,11 @@
  *   php /app/fixture/probe.php <base64 of a JSON request>
  *
  * Request:  {"call": "getBestPath" | "getBestPathMeta" | "getPossiblePaths",
- *            "version": "8.3" | null, "config": {"useWhich": true, …}, "path": "/usr/bin:…" | null}
+ *            "version": "8.3" | null, "config": {"useWhich": true, …}, "path": "/usr/bin:…" | null,
+ *            "os": "Darwin" | null}
+ *
+ * "os" makes PHPFinder behave as if it ran on that OS family, through its private $osFamily (as the unit
+ * tests do), e.g. to search the macOS-only locations, which the container has fixtures in.
  * Response: {"result": …, "diagnostics": ["…"], "runner": "8.5", "runnerVersion": "8.5.1",
  *            "phpBinary": "/usr/local/bin/php"}
  *
@@ -68,6 +72,17 @@ set_error_handler(
 
 $finder  = new PHPFinder($config);
 $version = $request['version'] ?? null;
+
+if (!empty($request['os']))
+{
+	\Closure::bind(
+		function ($osFamily) {
+			$this->osFamily = $osFamily;
+		},
+		$finder,
+		PHPFinder::class
+	)($request['os']);
+}
 
 switch ($request['call'])
 {

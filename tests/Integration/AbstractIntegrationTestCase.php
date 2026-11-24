@@ -44,6 +44,7 @@ abstract class AbstractIntegrationTestCase extends TestCase
 	protected const EXTENDED_84       = '/usr/local/bin/php84-cli';
 	protected const CPANEL_84         = '/opt/cpanel/ea-php84/root/usr/bin/php';
 	protected const ALTERNATIVES_84   = '/opt/pf-ua/php84';
+	protected const MAMP_MAC_83       = '/Applications/MAMP/bin/php/php8.3.0/bin/php';
 
 	/** @var array|null */
 	private static $runnerInfo;
@@ -116,16 +117,20 @@ abstract class AbstractIntegrationTestCase extends TestCase
 	 * @param   string|null  $version  The version to look for
 	 * @param   array        $config   Configuration overrides; [] is the library's defaults
 	 * @param   string|null  $path     The PATH to run with; NULL keeps the container's
+	 * @param   string|null  $os       The OS family PHPFinder behaves as (e.g. Darwin); NULL is the container's
 	 *
 	 * @return  array  The probe's response: result, diagnostics, runner, runnerVersion, phpBinary
 	 */
-	protected function probe(string $call, ?string $version, array $config = [], ?string $path = null): array
+	protected function probe(
+		string $call, ?string $version, array $config = [], ?string $path = null, ?string $os = null
+	): array
 	{
 		$request = base64_encode(json_encode([
 			'call'    => $call,
 			'version' => $version,
 			'config'  => (object) $config,
 			'path'    => $path,
+			'os'      => $os,
 		]));
 
 		$run      = self::dockerCompose(['exec', '-T', 'php', 'php', '/app/fixture/probe.php', $request]);
