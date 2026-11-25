@@ -24,6 +24,8 @@
 #       --keep-containers  Leave the stack running after the tests finish
 #                          (default: the stack is brought down). Then iterate with
 #                          phpunit -c phpunit-integration.xml --filter …
+#       --host=HOST        Run everything on HOST over SSH, or "local" (default: see README.md "Remote host")
+#       --slot=N           With --down or a repeat run on a remote host: which kept slot
 #   -h, --help             Show this help
 #
 # There is no --skip-build: nothing is built. The images come from buildfiles, and the library is
@@ -42,8 +44,6 @@ COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
 # Builds the PHP images every Akeeba E2E stack shares; see ensure_images().
 E2E_IMAGES="${REPO_ROOT}/../buildfiles/docker/e2e/images.sh"
 
-cd "${SCRIPT_DIR}"
-
 # ---------------------------------------------------------------------------
 # Pretty logging
 # ---------------------------------------------------------------------------
@@ -52,6 +52,26 @@ log()  { printf "${C_B}==>${C_0} %s\n" "$*"; }
 ok()   { printf "${C_G}  ok${C_0} %s\n" "$*"; }
 warn() { printf "${C_Y}  !!${C_0} %s\n" "$*"; }
 die()  { printf "${C_R}ERROR:${C_0} %s\n" "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Local or remote host. In remote mode everything below runs on that host instead, and e2e_remote exits with its status;
+# see "Remote E2E hosts" in ../buildfiles/README.md. This comes before anything which needs Docker or sets a trap.
+# There is no config file and no published port: the host comes from --host, the environment or build.properties.
+# ---------------------------------------------------------------------------
+E2E_REMOTE_SH="${REPO_ROOT}/../buildfiles/docker/e2e/remote.sh"
+# A nested linked worktree has no ../buildfiles of its own: use the one next to the main repository.
+[ -f "${E2E_REMOTE_SH}" ] || E2E_REMOTE_SH="$(dirname "$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir)")/../buildfiles/docker/e2e/remote.sh"
+[ -f "${E2E_REMOTE_SH}" ] || die "buildfiles not found. Check out akeeba/buildfiles next to this repository."
+# shellcheck source=/dev/null
+. "${E2E_REMOTE_SH}"
+
+E2E_HARNESS_DIR="${SCRIPT_DIR}"
+E2E_VERSION_FLAGS=("--php|-p=" "--matrix")
+E2E_REQUIRE=(phpunit)
+
+e2e_remote "${BASH_SOURCE[0]}" "$@"
+
+cd "${SCRIPT_DIR}"
 
 command -v docker >/dev/null 2>&1 || die "Docker is not installed or not on PATH."
 docker compose version >/dev/null 2>&1 || die "The Docker Compose plugin (docker compose) is not available."
@@ -77,7 +97,9 @@ while [ $# -gt 0 ]; do
 		--down)            ONLY_DOWN=1; shift;;
 		--no-tests)        RUN_TESTS=0; shift;;
 		--keep-containers) KEEP_CONTAINERS=1; shift;;
-		-h|--help)         sed -n "2,29p" "${SCRIPT_PATH}" | sed 's/^# \{0,1\}//'; exit 0;;
+		--host|--slot)     shift 2;;   # read by e2e_remote above
+		--host=*|--slot=*) shift;;
+		-h|--help)         sed -n '2,/^#   -h, --help/p' "${SCRIPT_PATH}" | sed 's/^# \{0,1\}//'; exit 0;;
 		--)                shift; while [ $# -gt 0 ]; do PHPUNIT_ARGS+=("$1"); shift; done;;
 		*)                 die "Unknown option: $1 (use --help)";;
 	esac
@@ -91,6 +113,8 @@ set -a
 # shellcheck source=matrix.env
 . "${SCRIPT_DIR}/matrix.env"
 set +a
+# On a remote E2E host: whatever this run was given, over the sourced file.
+e2e_apply_overrides
 [ -n "${PHP_OVERRIDE}" ] && export PHP_VERSION="${PHP_OVERRIDE}"
 
 : "${PHP_VERSION:?PHP_VERSION is not set}"
@@ -110,7 +134,8 @@ if [ "${RUN_MATRIX}" -eq 1 ]; then
 	for pver in ${PHP_MATRIX}; do
 		echo
 		log "──────── matrix: PHP ${pver} ────────"
-		EXTRA=()
+		# This run is already where it is meant to be: --host=local must reach the child, whatever the settings say.
+		EXTRA=("--host=local")
 		[ "${KEEP_CONTAINERS}" -eq 1 ] && EXTRA+=("--keep-containers")
 
 		"${SCRIPT_PATH}" --php="${pver}" ${EXTRA[@]+"${EXTRA[@]}"} -- ${PHPUNIT_ARGS[@]+"${PHPUNIT_ARGS[@]}"} || {
@@ -130,7 +155,10 @@ fi
 # ---------------------------------------------------------------------------
 # Teardown
 # ---------------------------------------------------------------------------
+# The name in docker-compose.yml; on a remote E2E host, this run's own (COMPOSE_PROJECT_NAME, which `docker compose`
+# honours by itself).
 COMPOSE_PROJECT="phpfinder-integration"
+[ "${E2E_AGENT:-}" != "1" ] || COMPOSE_PROJECT="${COMPOSE_PROJECT_NAME:?}"
 
 # Remove every container and volume of this stack. `down` alone is not enough after an interruption: a
 # harvest container killed mid-run (Ctrl-C) may still be on its way out, holding the phpbin volume, so
@@ -306,7 +334,10 @@ run_tests || TEST_STATUS=$?
 echo
 if [ "${KEEP_CONTAINERS}" -eq 1 ] || [ "${RUN_TESTS}" -eq 0 ]; then
 	ok "Done. The stack remains up for iterating on individual tests:"
-	echo "     phpunit -c phpunit-integration.xml --filter SomeTest"
+	# On a remote E2E host PHPUnit finds this run's stack only by its project name.
+	PHPUNIT_PREFIX=""
+	[ "${E2E_AGENT:-}" != "1" ] || PHPUNIT_PREFIX="COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} "
+	echo "     ${PHPUNIT_PREFIX}phpunit -c phpunit-integration.xml --filter SomeTest"
 	echo "     ${SCRIPT_DIR}/run.sh --down   # to tear it all down"
 else
 	teardown

@@ -21,6 +21,20 @@ tests/Integration/docker/run.sh --matrix   # every runner version in docker/matr
 composer test                              # unit suite, then this one
 ```
 
+## Remote host
+
+The whole integration suite can run on another machine over SSH instead:
+`tests/Integration/docker/run.sh --host=HOST`, the `E2E_DOCKER_HOST` environment variable, or `e2e.docker.host` in your
+`build.properties`. `--host=local` forces this machine. `composer test`, `composer test:integration` and `phing test`
+honour all but the flag; the unit suite still runs here. This does not apply to the Windows suite, whose `--host` names
+its KVM host (see `tests/Windows/README.md`).
+
+Every run on the host gets its own slot (staging tree and Compose project), so any number can run at once, also from Git
+worktrees. The host needs a global PHPUnit besides the usual tools. A kept stack (`--keep-containers`, `--no-tests`)
+stays up there until `--down`; to iterate on it, run on that host the PHPUnit command the run printed, in the directory
+it printed. Details and host requirements: "Remote E2E hosts" in the README of
+[akeeba/buildfiles](https://github.com/akeeba/buildfiles).
+
 ## `run.sh` options
 
 | Option | What it does |
@@ -31,6 +45,8 @@ composer test                              # unit suite, then this one
 | `--keep-containers` | Leave the stack up afterwards; then iterate with `vendor/bin/phpunit -c phpunit-integration.xml --filter …` |
 | `--no-tests` | Provision the stack and stop (it stays up) |
 | `--down` | Tear everything down and exit |
+| `--host=HOST` | Run everything on this SSH host, or `local`; see "Remote host" |
+| `--slot=N` | With `--down` or a repeat run on a remote host: which kept slot |
 | `-- <args>` | Anything after `--` goes to PHPUnit |
 
 There is no `--skip-build`: nothing is built. The library is bind-mounted from `src/`.
